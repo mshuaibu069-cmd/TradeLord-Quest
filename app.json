@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "name": "TradeLord Quest",
+    "slug": "tradelordquest",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#080B12"
+    },
+    "android": {
+      "package": "com.tradelordquest.app"
+    }
+  }
+}
