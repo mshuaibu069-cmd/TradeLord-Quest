@@ -16,7 +16,7 @@ const MODAX_OWNER_CHAT_ID = Deno.env.get("MODAX_OWNER_CHAT_ID");
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 const OPENAI_MODEL = Deno.env.get("OPENAI_MODEL") ?? "gpt-5.6-luna";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+const SUPABASE_SECRET_KEYS = Deno.env.get("SUPABASE_SECRET_KEYS");
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -26,13 +26,13 @@ function json(body: unknown, status = 200) {
 }
 
 async function logEvent(update: TelegramUpdate) {
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return;
+  if (!SUPABASE_URL || !SUPABASE_SECRET_KEYS) return;
 
   await fetch(`${SUPABASE_URL}/rest/v1/operator_events`, {
     method: "POST",
     headers: {
-      apikey: SUPABASE_SERVICE_ROLE_KEY,
-      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+      apikey: JSON.parse(SUPABASE_SECRET_KEYS).default,
+      Authorization: `Bearer ${JSON.parse(SUPABASE_SECRET_KEYS).default}`,
       "Content-Type": "application/json",
       Prefer: "return=minimal",
     },
