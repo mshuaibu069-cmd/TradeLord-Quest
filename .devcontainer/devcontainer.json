@@ -1,0 +1,13 @@
+{
+  "name": "TradeLord Quest",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm",
+  "postCreateCommand": "npm install && npx expo install --fix",
+  "forwardPorts": [8081],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "expo.vscode-expo-tools"
+      ]
+    }
+  }
+}
