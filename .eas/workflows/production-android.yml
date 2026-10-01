@@ -1,0 +1,12 @@
+name: Production Android
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build_android_production:
+    name: Build Android App Bundle
+    type: build
+    params:
+      platform: android
+      profile: production
