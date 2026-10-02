@@ -19,6 +19,9 @@ We may rate-limit, flag, suspend, or investigate activity when reasonably necess
 ## Premium
 When Premium launches, pricing, billing period, renewal, cancellation, benefits, and applicable taxes will be shown clearly before purchase.
 
+## Risk and legal compliance
+Nothing in these terms is intended to exclude rights or liabilities that cannot legally be excluded. The service should maintain reasonable security, privacy, consumer-protection, advertising, subscription, and platform-policy controls. Terms alone do not prevent lawsuits, refunds, regulator action, or fines.
+
 ## Availability
 Features may change or be temporarily unavailable. We do not promise the service will always be error-free or permanently available.
 
