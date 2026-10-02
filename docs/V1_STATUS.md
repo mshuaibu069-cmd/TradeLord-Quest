@@ -11,6 +11,10 @@ Updated: 2026-09-30
 - Home dashboard.
 
 ## Added in this build
+- VEQORO powered-by brand screen shown at app launch.
+- Secure complaint flow connected to a JWT-protected Supabase support-agent Edge Function.
+- Rules-based support triage with optional server-side AI layer; sensitive/high-impact cases create an owner-review queue.
+- Privacy settings, account deletion request flow, and support/security disclosures.
 - Multi-screen navigation.
 - Demo Trading UI.
 - Server-held demo market prices.
@@ -33,6 +37,8 @@ Updated: 2026-09-30
 - Points, Premium, competitions, and other important rewards must be server-validated before release. Profile fields such as virtual balance, points, streak, and premium status are not client-writable; display name is the only profile update exposed to the app.
 
 ## Still required before production
+- Native push-notification package/credentials and EAS rebuild so support updates can reach users while the app is closed.
+- Owner/admin dashboard for reviewing the support-agent queue and making decisions.
 1. Saved academy progress and quizzes.
 2. Persistent challenge/competition system and leaderboard.
 3. Authorized live market-news feed.
