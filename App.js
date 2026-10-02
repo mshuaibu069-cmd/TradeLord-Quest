@@ -16,6 +16,13 @@ import { supabase } from './supabase';
 import { signIn, signOut as signOutUser, signUp } from './src/services/auth';
 import { getCurrentProfile } from './src/services/profile';
 import {
+  createSupportTicket,
+  getMySupportTickets,
+  getPrivacySettings,
+  updatePrivacySettings,
+  requestAccountDeletion,
+} from './src/services/support';
+import {
   FALLBACK_MARKETS,
   getDemoMarkets,
   getVirtualPositions,
@@ -247,6 +254,9 @@ export default function App() {
           {screen === 'premium' && <PremiumScreen {...common} />}
           {screen === 'ai' && <AiScreen {...common} />}
           {screen === 'account' && <AccountScreen {...common} onSignOut={logout} working={working} />}
+          {screen === 'support' && <SupportScreen {...common} />}
+          {screen === 'privacy' && <PrivacyScreen {...common} />}
+          {screen === 'terms' && <TermsScreen {...common} />}
         </ScrollView>
 
         {NAV.some((item) => item.key === screen) && (
@@ -624,7 +634,23 @@ function AiScreen({ onBack }) {
   );
 }
 
-function AccountScreen({ session, profile, onBack, onSignOut, working }) {
+function AccountScreen({ session, profile, onBack, onSignOut, working, setScreen }) {
+  const [deleteWorking, setDeleteWorking] = useState(false);
+  const [deleteMessage, setDeleteMessage] = useState('');
+
+  async function submitDeletionRequest() {
+    setDeleteWorking(true);
+    setDeleteMessage('');
+    try {
+      await requestAccountDeletion('User requested account and associated data deletion.');
+      setDeleteMessage('Deletion request submitted. We will process it securely.');
+    } catch (error) {
+      setDeleteMessage(error.message);
+    } finally {
+      setDeleteWorking(false);
+    }
+  }
+
   return (
     <>
       <ScreenHeader title="Account" onBack={onBack} />
@@ -636,9 +662,211 @@ function AccountScreen({ session, profile, onBack, onSignOut, working }) {
         <Text style={[s.cardLabel, s.accountGap]}>Starting demo balance</Text>
         <Text style={s.accountValue}>$10,000.00</Text>
       </View>
+
+      <Text style={s.section}>Help & protection</Text>
+      <MenuCard icon="?" title="Help & Complaints" subtitle="Report bugs, billing, privacy, security, or account problems" onPress={() => setScreen('support')} />
+      <MenuCard icon="✓" title="Privacy & Security" subtitle="See what data is used and control available settings" onPress={() => setScreen('privacy')} />
+      <MenuCard icon="§" title="Terms & Rules" subtitle="Important rules, limits, and responsibilities" onPress={() => setScreen('terms')} />
+
+      <View style={s.infoCallout}>
+        <Text style={s.infoTitle}>Account deletion</Text>
+        <Text style={s.bodyText}>You can request deletion of your account and associated data. Some records may need limited retention for security, fraud prevention, or legal obligations.</Text>
+        {!!deleteMessage && <Text style={[s.message, s.success, { marginTop: 10 }]}>{deleteMessage}</Text>}
+        <Pressable style={s.secondaryButton} onPress={submitDeletionRequest} disabled={deleteWorking}>
+          {deleteWorking ? <ActivityIndicator /> : <Text style={s.secondaryText}>Request account deletion</Text>}
+        </Pressable>
+      </View>
+
       <Pressable style={s.dangerButton} onPress={onSignOut} disabled={working}>
         {working ? <ActivityIndicator /> : <Text style={s.dangerText}>Sign out</Text>}
       </Pressable>
+    </>
+  );
+}
+
+function SupportScreen({ onBack }) {
+  const [category, setCategory] = useState('general');
+  const [subject, setSubject] = useState('');
+  const [message, setMessage] = useState('');
+  const [tickets, setTickets] = useState([]);
+  const [working, setWorking] = useState(false);
+  const [status, setStatus] = useState('');
+
+  async function loadTickets() {
+    try {
+      setTickets(await getMySupportTickets());
+    } catch (error) {
+      setStatus(error.message);
+    }
+  }
+
+  useEffect(() => {
+    loadTickets();
+  }, []);
+
+  async function submit() {
+    if (subject.trim().length < 3 || message.trim().length < 5) {
+      setStatus('Please enter a short subject and explain the problem.');
+      return;
+    }
+
+    setWorking(true);
+    setStatus('');
+    try {
+      await createSupportTicket({ category, subject, message });
+      setSubject('');
+      setMessage('');
+      setStatus('Complaint received. Automatic triage will review it, and harder cases can be escalated for human decision.');
+      await loadTickets();
+    } catch (error) {
+      setStatus(error.message);
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  return (
+    <>
+      <ScreenHeader title="Help & Complaints" onBack={onBack} />
+      <View style={s.infoCallout}>
+        <Text style={s.infoTitle}>Automatic support</Text>
+        <Text style={s.bodyText}>Your complaint is stored securely. The support system can classify routine issues and prepare a response. It must not secretly monitor you or make high-impact decisions without proper review.</Text>
+      </View>
+
+      <Text style={s.fieldLabel}>Problem type</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.assetRow}>
+        {['general','bug','billing','privacy','security','account','content'].map((item) => (
+          <Pressable key={item} style={[s.assetChip, category === item && s.assetChipActive]} onPress={() => setCategory(item)}>
+            <Text style={[s.assetChipText, category === item && s.assetChipTextActive]}>{item}</Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+
+      <Text style={s.fieldLabel}>Subject</Text>
+      <TextInput style={s.input} value={subject} onChangeText={setSubject} placeholder="What happened?" placeholderTextColor={C.faint} />
+
+      <Text style={s.fieldLabel}>Details</Text>
+      <TextInput
+        style={[s.input, s.textArea]}
+        multiline
+        value={message}
+        onChangeText={setMessage}
+        placeholder="Explain the problem clearly."
+        placeholderTextColor={C.faint}
+      />
+
+      {!!status && <Text style={s.message}>{status}</Text>}
+
+      <Pressable style={s.primaryButton} onPress={submit} disabled={working}>
+        {working ? <ActivityIndicator color={C.accentText} /> : <Text style={s.primaryText}>Send complaint</Text>}
+      </Pressable>
+
+      <Text style={s.section}>Your previous complaints</Text>
+      {tickets.length === 0 ? (
+        <EmptyState text="No complaints submitted yet." />
+      ) : (
+        tickets.map((ticket) => (
+          <View key={ticket.id} style={s.listRow}>
+            <View style={s.listGrow}>
+              <Text style={s.listTitle}>{ticket.subject}</Text>
+              <Text style={s.listSubtitle}>{ticket.category} • {ticket.status} • {ticket.priority}</Text>
+              {!!ticket.ai_recommendation && <Text style={s.listSubtitle}>Support note: {ticket.ai_recommendation}</Text>}
+            </View>
+          </View>
+        ))
+      )}
+    </>
+  );
+}
+
+function PrivacyScreen({ onBack }) {
+  const [settings, setSettings] = useState(null);
+  const [status, setStatus] = useState('');
+  const [working, setWorking] = useState(false);
+
+  useEffect(() => {
+    getPrivacySettings().then(setSettings).catch((error) => setStatus(error.message));
+  }, []);
+
+  async function save(next) {
+    setWorking(true);
+    setStatus('');
+    try {
+      const updated = await updatePrivacySettings(next);
+      setSettings(updated);
+      setStatus('Privacy settings saved.');
+    } catch (error) {
+      setStatus(error.message);
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  const supportAi = settings?.support_ai_enabled ?? true;
+  const analytics = settings?.product_analytics_enabled ?? false;
+
+  return (
+    <>
+      <ScreenHeader title="Privacy & Security" onBack={onBack} />
+      <View style={s.infoCallout}>
+        <Text style={s.infoTitle}>What we protect</Text>
+        <Text style={s.bodyText}>TradeLord Quest should collect only data needed for accounts, learning, support, security, and features you choose. Passwords are handled by Supabase Auth; app secrets and AI keys must stay server-side.</Text>
+      </View>
+
+      <View style={s.settingRow}>
+        <View style={s.settingText}>
+          <Text style={s.listTitle}>Automatic support assistant</Text>
+          <Text style={s.listSubtitle}>Allows complaint text to be processed for support triage.</Text>
+        </View>
+        <Pressable style={[s.toggle, supportAi && s.toggleOn]} onPress={() => save({ support_ai_enabled: !supportAi })} disabled={working}>
+          <Text style={s.toggleText}>{supportAi ? 'ON' : 'OFF'}</Text>
+        </Pressable>
+      </View>
+
+      <View style={s.settingRow}>
+        <View style={s.settingText}>
+          <Text style={s.listTitle}>Product analytics</Text>
+          <Text style={s.listSubtitle}>Optional usage analytics for improving the product.</Text>
+        </View>
+        <Pressable style={[s.toggle, analytics && s.toggleOn]} onPress={() => save({ product_analytics_enabled: !analytics })} disabled={working}>
+          <Text style={s.toggleText}>{analytics ? 'ON' : 'OFF'}</Text>
+        </Pressable>
+      </View>
+
+      <View style={s.infoCallout}>
+        <Text style={s.infoTitle}>Security monitoring</Text>
+        <Text style={s.bodyText}>We may record limited security events such as failed sign-ins, abuse signals, and system errors to protect accounts and the service. This is not a promise that hacking is impossible.</Text>
+        <Text style={[s.bodyText, { marginTop: 8 }]}>Privacy version: {settings?.privacy_version || '2026-10-02'}</Text>
+      </View>
+
+      {!!status && <Text style={s.message}>{status}</Text>}
+
+      <Text style={s.section}>Your rights</Text>
+      <Text style={s.bodyText}>You can ask about your data, request correction or deletion, and raise a privacy complaint. Nigerian privacy rules include rights to be informed, access, rectification, objection, restriction, portability, and erasure.</Text>
+    </>
+  );
+}
+
+function TermsScreen({ onBack }) {
+  return (
+    <>
+      <ScreenHeader title="Terms & Rules" onBack={onBack} />
+      <View style={s.infoCallout}>
+        <Text style={s.infoTitle}>Educational simulator</Text>
+        <Text style={s.bodyText}>TradeLord Quest uses virtual money. It is not a broker, exchange, bank, investment service, or promise of profit. AI explanations are educational and are not personalized financial advice.</Text>
+      </View>
+
+      <Text style={s.detailTitle}>User responsibilities</Text>
+      <Text style={s.bodyText}>Do not abuse the service, attempt to bypass security, create fraudulent accounts, manipulate competitions, submit unlawful content, or interfere with other users.</Text>
+
+      <Text style={s.detailTitle}>Service limits</Text>
+      <Text style={s.bodyText}>We may rate-limit, flag, suspend, or investigate activity when necessary to protect users, the service, or competitions. High-impact actions should use human review where appropriate.</Text>
+
+      <Text style={s.detailTitle}>AI support</Text>
+      <Text style={s.bodyText}>Support automation may classify complaints and prepare responses. Users should be told when automation is used, and sensitive or high-impact cases should be escalated.</Text>
+
+      <Text style={s.detailTitle}>Privacy</Text>
+      <Text style={s.bodyText}>The final public privacy policy will describe data collection, sharing, retention, security, international processing, user rights, and deletion procedures in detail.</Text>
     </>
   );
 }
@@ -787,4 +1015,9 @@ const s = StyleSheet.create({
   accountGap: { marginTop: 18 },
   dangerButton: { minHeight: 52, borderRadius: 13, borderWidth: 1, borderColor: '#5A2929', backgroundColor: '#1D1010', alignItems: 'center', justifyContent: 'center', marginTop: 14 },
   dangerText: { color: C.danger, fontSize: 15, fontWeight: '900' },
+  settingRow: { backgroundColor: C.card, borderRadius: 16, borderWidth: 1, borderColor: C.border, padding: 15, marginBottom: 10, flexDirection: 'row', alignItems: 'center' },
+  settingText: { flex: 1, paddingRight: 12 },
+  toggle: { minWidth: 58, minHeight: 38, borderRadius: 19, borderWidth: 1, borderColor: C.border, backgroundColor: C.card2, alignItems: 'center', justifyContent: 'center' },
+  toggleOn: { borderColor: C.success, backgroundColor: '#102017' },
+  toggleText: { color: C.muted, fontWeight: '900', fontSize: 11 },
 });
