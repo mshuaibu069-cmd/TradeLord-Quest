@@ -60,6 +60,12 @@ export default function App() {
   const [screen, setScreen] = useState('home');
   const [form, setForm] = useState({ email: '', password: '' });
   const [message, setMessage] = useState('');
+  const [showPoweredBy, setShowPoweredBy] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setShowPoweredBy(false), 1400);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -158,6 +164,10 @@ export default function App() {
     } finally {
       setWorking(false);
     }
+  }
+
+  if (showPoweredBy) {
+    return <PoweredByScreen />;
   }
 
   if (loading) {
@@ -269,6 +279,18 @@ export default function App() {
             ))}
           </View>
         )}
+      </View>
+    </SafeAreaView>
+  );
+}
+
+function PoweredByScreen() {
+  return (
+    <SafeAreaView style={s.poweredScreen}>
+      <View style={s.poweredContent}>
+        <View style={s.poweredMark}><Text style={s.poweredMarkText}>V</Text></View>
+        <Text style={s.poweredText}>Powered by</Text>
+        <Text style={s.poweredBrand}>VEQORO</Text>
       </View>
     </SafeAreaView>
   );
@@ -713,10 +735,10 @@ function SupportScreen({ onBack }) {
     setWorking(true);
     setStatus('');
     try {
-      await createSupportTicket({ category, subject, message });
+      const ticket = await createSupportTicket({ category, subject, message });
       setSubject('');
       setMessage('');
-      setStatus('Complaint received. Automatic triage will review it, and harder cases can be escalated for human decision.');
+      setStatus('Complaint received. The support agent will triage it automatically. Harder cases can be escalated for human decision, and you can be notified when the status changes.');
       await loadTickets();
     } catch (error) {
       setStatus(error.message);
@@ -730,7 +752,8 @@ function SupportScreen({ onBack }) {
       <ScreenHeader title="Help & Complaints" onBack={onBack} />
       <View style={s.infoCallout}>
         <Text style={s.infoTitle}>Automatic support</Text>
-        <Text style={s.bodyText}>Your complaint is stored securely. The support system can classify routine issues and prepare a response. It must not secretly monitor you or make high-impact decisions without proper review.</Text>
+        <Text style={s.bodyText}>Your complaint is stored securely. A server-side support agent can triage routine issues, notify you when there is an update, and escalate security, privacy, billing, deletion, or legal/regulatory cases for human review.</Text>
+        <Text style={[s.bodyText, { marginTop: 8 }]}>We do not need to watch your private activity to provide support. Security monitoring is limited to signals needed to protect the service and investigate abuse.</Text>
       </View>
 
       <Text style={s.fieldLabel}>Problem type</Text>
@@ -923,6 +946,12 @@ const s = StyleSheet.create({
   switchText: { color: '#AEB8C6', fontSize: 13, textAlign: 'center' },
 
   content: { padding: 20, paddingBottom: 34 },
+  poweredScreen: { flex: 1, backgroundColor: '#000000', alignItems: 'center', justifyContent: 'center' },
+  poweredContent: { alignItems: 'center', justifyContent: 'center' },
+  poweredMark: { width: 70, height: 70, borderRadius: 20, borderWidth: 2, borderColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', marginBottom: 18 },
+  poweredMarkText: { color: '#FFFFFF', fontSize: 36, fontWeight: '300', letterSpacing: -2 },
+  poweredText: { color: '#9CA3AF', fontSize: 13, letterSpacing: 1.5, textTransform: 'uppercase' },
+  poweredBrand: { color: '#FFFFFF', fontSize: 28, fontWeight: '800', letterSpacing: 3, marginTop: 5 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 },
   headerLeft: { flex: 1, paddingRight: 12 },
   eyebrow: { color: C.accent, fontSize: 11, fontWeight: '800', letterSpacing: 1.4 },
