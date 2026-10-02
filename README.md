@@ -13,7 +13,7 @@ TradeLord Quest is an educational trading simulator using virtual money.
 - Authenticated Home dashboard
 - Phone-first cloud development setup
 - Expo EAS internal Android APK build profile
-- Controlled MODAX Telegram operator foundation
+- Controlled VEQORO support-operations foundation
 
 ## Cloud-first workflow
 
@@ -21,7 +21,7 @@ TradeLord Quest is an educational trading simulator using virtual money.
 - **GitHub Codespaces** is the primary coding environment.
 - **Supabase** handles the database, authentication, and Edge Functions.
 - **Expo EAS** handles cloud Android builds.
-- **Telegram MODAX Operator** is being built as a controlled operations layer.
+- **VEQORO support-operations layer** is being built as a controlled operations layer.
 
 ## Branches
 
@@ -49,6 +49,6 @@ The preview profile produces an APK for direct Android installation. Production 
 
 Never put a Supabase secret/service-role key or an OpenAI secret key in the mobile app.
 
-The MODAX operator is intentionally limited at first to observation, reporting, replies, and recommendations. Production changes require human approval.
+The support-operations layer is intentionally limited at first to observation, reporting, replies, and recommendations. Production changes require human approval.
 
 See [docs/PHONE-FIRST.md](docs/PHONE-FIRST.md) for the phone-first workflow.
