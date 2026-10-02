@@ -2,7 +2,7 @@
 
 **Version:** 2026-10-02
 
-This is an implementation draft, not legal advice or the final public policy.
+This is an implementation draft, not legal advice or the final public policy. It must be reviewed against the laws of every market where the app is offered.
 
 ## What TradeLord Quest is
 TradeLord Quest is an educational trading simulator. It uses virtual money and is not a real-money trading service.
@@ -51,6 +51,9 @@ Subject to applicable law, users may have rights to be informed, access their da
 
 ## Complaints
 Users can contact TradeLord Quest through the in-app Help & Complaints system. Privacy complaints can be escalated for human review.
+
+## Compliance and risk
+The service should comply with the Nigeria Data Protection Act 2023 and other privacy/data-protection laws that apply in each market. Privacy notices, consent, processor agreements, retention rules, security controls, breach procedures, and Google Play disclosures must stay synchronized with the actual implementation. A privacy policy does not prevent lawsuits or regulatory action by itself; compliance and evidence of responsible data handling are the protection.
 
 ## Changes
 We will update this policy when the app's data practices change.
