@@ -1,6 +1,48 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+
 import { supabase } from './supabase';
+import { signIn, signOut as signOutUser, signUp } from './src/services/auth';
+import { getCurrentProfile } from './src/services/profile';
+import {
+  FALLBACK_MARKETS,
+  getDemoMarkets,
+  getVirtualPositions,
+  placeVirtualOrder,
+} from './src/services/trading';
+
+const C = {
+  bg: '#080B12',
+  card: '#111827',
+  card2: '#0D1420',
+  border: '#263244',
+  text: '#FFFFFF',
+  muted: '#94A0B0',
+  faint: '#657184',
+  accent: '#D9B44A',
+  accentText: '#08101C',
+  success: '#72D6A1',
+  danger: '#FF7B7B',
+};
+
+const NAV = [
+  { key: 'home', label: 'Home', icon: '⌂' },
+  { key: 'trade', label: 'Trade', icon: '↗' },
+  { key: 'academy', label: 'Learn', icon: '▣' },
+  { key: 'challenges', label: 'Challenges', icon: '★' },
+  { key: 'news', label: 'News', icon: '◉' },
+];
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -8,149 +50,741 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
   const [mode, setMode] = useState('signIn');
+  const [screen, setScreen] = useState('home');
   const [form, setForm] = useState({ email: '', password: '' });
   const [message, setMessage] = useState('');
 
   useEffect(() => {
     let mounted = true;
-    supabase.auth.getSession().then(async ({ data, error }) => {
+
+    async function boot() {
+      const result = await supabase.auth.getSession();
       if (!mounted) return;
-      if (error) setMessage(error.message);
-      setSession(data.session);
-      if (data.session) await loadProfile(data.session.user.id);
+
+      if (result.error) setMessage(result.error.message);
+      setSession(result.data.session);
+
+      if (result.data.session) {
+        try {
+          setProfile(await getCurrentProfile());
+        } catch (error) {
+          setMessage(error.message);
+        }
+      }
+
       setLoading(false);
-    });
-    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
+    }
+
+    boot();
+
+    const listener = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
       if (!mounted) return;
       setSession(nextSession);
-      if (nextSession) await loadProfile(nextSession.user.id);
-      else setProfile(null);
+
+      if (nextSession) {
+        try {
+          setProfile(await getCurrentProfile());
+        } catch (error) {
+          setMessage(error.message);
+        }
+      } else {
+        setProfile(null);
+        setScreen('home');
+      }
     });
-    return () => { mounted = false; listener.subscription.unsubscribe(); };
+
+    return () => {
+      mounted = false;
+      listener.data.subscription.unsubscribe();
+    };
   }, []);
 
-  async function loadProfile(userId) {
-    const { data, error } = await supabase.from('profiles')
-      .select('id, username, display_name, virtual_balance, points, streak_days, premium_until, created_at')
-      .eq('id', userId).single();
-    if (error) { setMessage(error.message); return; }
-    setProfile(data);
+  async function refreshProfile() {
+    if (!session) return;
+    try {
+      setProfile(await getCurrentProfile());
+    } catch (error) {
+      setMessage(error.message);
+    }
   }
 
-  async function submitAuth() {
+  async function authSubmit() {
     const email = form.email.trim();
     const password = form.password;
-    if (!email || !password) return setMessage('Enter your email and password.');
-    if (password.length < 6) return setMessage('Password must be at least 6 characters.');
-    setWorking(true); setMessage('');
-    if (mode === 'signIn') {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) setMessage(error.message);
-    } else {
-      const { data, error } = await supabase.auth.signUp({ email, password });
-      if (error) setMessage(error.message);
-      else if (!data.session) {
-        setMessage('Account created. Check your email to confirm your account, then sign in.');
-        setMode('signIn');
-      }
+
+    if (!email || !password) {
+      setMessage('Enter your email and password.');
+      return;
     }
-    setWorking(false);
-  }
 
-  async function signOut() {
+    if (password.length < 6) {
+      setMessage('Password must be at least 6 characters.');
+      return;
+    }
+
     setWorking(true);
-    const { error } = await supabase.auth.signOut();
-    setWorking(false);
-    if (error) setMessage(error.message);
+    setMessage('');
+
+    try {
+      if (mode === 'signIn') {
+        await signIn(email, password);
+      } else {
+        const data = await signUp(email, password);
+        if (!data.session) {
+          setMessage('Account created. Check your email, then sign in.');
+          setMode('signIn');
+        }
+      }
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setWorking(false);
+    }
   }
 
-  if (loading) return <SafeAreaView style={styles.center}><ActivityIndicator size="large" /><Text style={styles.loadingText}>Loading TradeLord Quest…</Text></SafeAreaView>;
+  async function logout() {
+    setWorking(true);
+    try {
+      await signOutUser();
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setWorking(false);
+    }
+  }
 
-  if (!session) return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.authContent}>
-          <View style={styles.logoMark}><Text style={styles.logoMarkText}>TL</Text></View>
-          <Text style={styles.logo}>TradeLord Quest</Text>
-          <Text style={styles.tagline}>Learn. Practice. Compete.</Text>
-          <View style={styles.authCard}>
-            <Text style={styles.title}>{mode === 'signIn' ? 'Welcome back' : 'Create your account'}</Text>
-            <Text style={styles.subtitle}>{mode === 'signIn' ? 'Sign in to continue your trading-learning journey.' : 'Start learning with virtual money. No real-money trading.'}</Text>
-            <TextInput style={styles.input} placeholder="Email" placeholderTextColor="#6B7280" autoCapitalize="none" keyboardType="email-address" value={form.email} onChangeText={(email) => setForm({ ...form, email })} />
-            <TextInput style={styles.input} placeholder="Password" placeholderTextColor="#6B7280" secureTextEntry value={form.password} onChangeText={(password) => setForm({ ...form, password })} />
-            {!!message && <Text style={styles.message}>{message}</Text>}
-            <TouchableOpacity style={styles.primaryButton} onPress={submitAuth} disabled={working}>
-              {working ? <ActivityIndicator color="#08101C" /> : <Text style={styles.primaryText}>{mode === 'signIn' ? 'Sign In' : 'Create Account'}</Text>}
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.switchButton} onPress={() => { setMessage(''); setMode(mode === 'signIn' ? 'signUp' : 'signIn'); }}>
-              <Text style={styles.switchText}>{mode === 'signIn' ? 'New to TradeLord Quest? Create an account' : 'Already have an account? Sign in'}</Text>
-            </TouchableOpacity>
-          </View>
+  if (loading) {
+    return (
+      <SafeAreaView style={s.center}>
+        <ActivityIndicator size="large" />
+        <Text style={s.loading}>Loading TradeLord Quest…</Text>
+      </SafeAreaView>
+    );
+  }
+
+  if (!session) {
+    return (
+      <SafeAreaView style={s.container}>
+        <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <ScrollView contentContainerStyle={s.authContent}>
+            <View style={s.authBrand}>
+              <View style={s.logoMark}><Text style={s.logoMarkText}>TL</Text></View>
+              <Text style={s.logo}>TradeLord Quest</Text>
+              <Text style={s.tagline}>Learn. Practice. Compete.</Text>
+            </View>
+
+            <View style={s.authCard}>
+              <Text style={s.title}>{mode === 'signIn' ? 'Welcome back' : 'Create your account'}</Text>
+              <Text style={s.subtitle}>
+                {mode === 'signIn'
+                  ? 'Sign in to continue your trading-learning journey.'
+                  : 'Start learning with virtual money. No real-money trading.'}
+              </Text>
+
+              <TextInput
+                style={s.input}
+                placeholder="Email"
+                placeholderTextColor={C.faint}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                value={form.email}
+                onChangeText={(email) => setForm({ ...form, email })}
+              />
+
+              <TextInput
+                style={s.input}
+                placeholder="Password"
+                placeholderTextColor={C.faint}
+                secureTextEntry
+                value={form.password}
+                onChangeText={(password) => setForm({ ...form, password })}
+              />
+
+              {!!message && <Text style={s.message}>{message}</Text>}
+
+              <Pressable style={s.primaryButton} onPress={authSubmit} disabled={working}>
+                {working ? <ActivityIndicator color={C.accentText} /> : <Text style={s.primaryText}>{mode === 'signIn' ? 'Sign In' : 'Create Account'}</Text>}
+              </Pressable>
+
+              <Pressable
+                style={s.switchButton}
+                onPress={() => {
+                  setMessage('');
+                  setMode(mode === 'signIn' ? 'signUp' : 'signIn');
+                }}
+              >
+                <Text style={s.switchText}>
+                  {mode === 'signIn'
+                    ? 'New to TradeLord Quest? Create an account'
+                    : 'Already have an account? Sign in'}
+                </Text>
+              </Pressable>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    );
+  }
+
+  const common = {
+    profile,
+    onBack: () => setScreen('home'),
+    setScreen,
+    refreshProfile,
+    session,
+  };
+
+  return (
+    <SafeAreaView style={s.container}>
+      <View style={s.flex}>
+        <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
+          {screen === 'home' && <HomeScreen {...common} />}
+          {screen === 'trade' && <TradeScreen {...common} />}
+          {screen === 'academy' && <AcademyScreen {...common} />}
+          {screen === 'challenges' && <ChallengesScreen {...common} />}
+          {screen === 'news' && <NewsScreen {...common} />}
+          {screen === 'rewards' && <RewardsScreen {...common} />}
+          {screen === 'premium' && <PremiumScreen {...common} />}
+          {screen === 'ai' && <AiScreen {...common} />}
+          {screen === 'account' && <AccountScreen {...common} onSignOut={logout} working={working} />}
         </ScrollView>
-      </KeyboardAvoidingView>
+
+        {NAV.some((item) => item.key === screen) && (
+          <View style={s.bottomNav}>
+            {NAV.map((item) => (
+              <Pressable key={item.key} style={s.navItem} onPress={() => setScreen(item.key)}>
+                <Text style={[s.navIcon, screen === item.key && s.active]}>{item.icon}</Text>
+                <Text style={[s.navLabel, screen === item.key && s.active]}>{item.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
+      </View>
     </SafeAreaView>
   );
+}
 
+function HomeScreen({ session, profile, setScreen }) {
   const balance = Number(profile?.virtual_balance ?? 10000);
   const points = Number(profile?.points ?? 0);
   const streak = Number(profile?.streak_days ?? 0);
   const displayName = profile?.display_name || profile?.username || session.user.email || 'Trader';
-  const balanceText = '$' + balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.homeContent}>
-        <View style={styles.headerRow}>
-          <View><Text style={styles.eyebrow}>TRADELORD QUEST</Text><Text style={styles.greeting}>Welcome, {displayName.split('@')[0]}</Text></View>
-          <TouchableOpacity onPress={signOut} disabled={working}><Text style={styles.signOut}>Sign out</Text></TouchableOpacity>
+    <>
+      <View style={s.headerRow}>
+        <View style={s.headerLeft}>
+          <Text style={s.eyebrow}>TRADELORD QUEST</Text>
+          <Text style={s.greeting}>Welcome, {String(displayName).split('@')[0]}</Text>
         </View>
-        <Text style={styles.tagline}>Learn. Practice. Compete.</Text>
-        <View style={styles.balanceCard}>
-          <Text style={styles.cardLabel}>Virtual Balance</Text>
-          <Text style={styles.balance}>{balanceText}</Text>
-          <Text style={styles.demoLabel}>DEMO MONEY • EDUCATIONAL SIMULATOR</Text>
-        </View>
-        <View style={styles.statsRow}>
-          <StatCard label="⭐ Points" value={points.toLocaleString()} />
-          <StatCard label="🔥 Streak" value={streak + ' Days'} />
-        </View>
-        <Text style={styles.section}>Continue learning</Text>
-        <MenuCard icon="📈" title="Demo Trading" subtitle="Practice with virtual money" />
-        <MenuCard icon="🎓" title="Trading Academy" subtitle="Learn step by step" />
-        <MenuCard icon="🤖" title="AI Teacher" subtitle="Get explanations and guidance" />
-        <MenuCard icon="🏆" title="Competition" subtitle="Complete challenges and earn points" />
-        <MenuCard icon="📰" title="Market News" subtitle="Learn what moves markets" />
-        <MenuCard icon="🎁" title="Points & Rewards" subtitle="Track your progress" />
-        <MenuCard icon="💎" title="Premium" subtitle="Unlock more learning features" />
-      </ScrollView>
-    </SafeAreaView>
+        <Pressable onPress={() => setScreen('account')}><Text style={s.accountButton}>Account</Text></Pressable>
+      </View>
+
+      <Text style={s.tagline}>Learn. Practice. Compete.</Text>
+
+      <View style={s.balanceCard}>
+        <Text style={s.cardLabel}>Virtual Balance</Text>
+        <Text style={s.balance}>
+          {'$' + balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </Text>
+        <Text style={s.demoLabel}>DEMO MONEY • EDUCATIONAL SIMULATOR</Text>
+      </View>
+
+      <View style={s.statsRow}>
+        <View style={s.statCard}><Text style={s.cardLabel}>Points</Text><Text style={s.statValue}>★ {points.toLocaleString()}</Text></View>
+        <View style={s.statCard}><Text style={s.cardLabel}>Streak</Text><Text style={s.statValue}>🔥 {streak} Days</Text></View>
+      </View>
+
+      <Text style={s.section}>Continue learning</Text>
+      <MenuCard icon="↗" title="Demo Trading" subtitle="Practice with virtual money" onPress={() => setScreen('trade')} />
+      <MenuCard icon="▣" title="Trading Academy" subtitle="Learn the fundamentals step by step" onPress={() => setScreen('academy')} />
+      <MenuCard icon="AI" title="AI Teacher" subtitle="Secure AI interface — backend next" onPress={() => setScreen('ai')} />
+      <MenuCard icon="★" title="Challenges" subtitle="Practice structured trading tasks" onPress={() => setScreen('challenges')} />
+      <MenuCard icon="◉" title="Market News" subtitle="Demo market brief while live feed is prepared" onPress={() => setScreen('news')} />
+      <MenuCard icon="✦" title="Points & Rewards" subtitle="Track progression and future unlocks" onPress={() => setScreen('rewards')} />
+      <MenuCard icon="◆" title="Premium" subtitle="More learning features and no ads" onPress={() => setScreen('premium')} />
+    </>
   );
 }
 
-function StatCard({ label, value }) {
-  return <View style={styles.statCard}><Text style={styles.cardLabel}>{label}</Text><Text style={styles.statValue}>{value}</Text></View>;
+function TradeScreen({ profile, onBack, refreshProfile }) {
+  const [markets, setMarkets] = useState(FALLBACK_MARKETS);
+  const [selected, setSelected] = useState(FALLBACK_MARKETS[0]);
+  const [side, setSide] = useState('buy');
+  const [quantity, setQuantity] = useState('0.01');
+  const [positions, setPositions] = useState([]);
+  const [working, setWorking] = useState(false);
+  const [status, setStatus] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    async function load() {
+      try {
+        const marketData = await getDemoMarkets();
+        const positionData = await getVirtualPositions();
+        if (!active) return;
+        setMarkets(marketData.length ? marketData : FALLBACK_MARKETS);
+        setSelected(marketData.find((m) => m.symbol === selected.symbol) || marketData[0] || FALLBACK_MARKETS[0]);
+        setPositions(positionData);
+      } catch (error) {
+        if (active) setStatus(error.message);
+      }
+    }
+    load();
+    return () => { active = false; };
+  }, []);
+
+  async function reloadPositions() {
+    setPositions(await getVirtualPositions());
+  }
+
+  const qty = Number(quantity);
+  const price = Number(selected?.price || 0);
+  const value = Number.isFinite(qty) ? qty * price : 0;
+  const priceText = price.toLocaleString(undefined, {
+    minimumFractionDigits: price < 10 ? 3 : 2,
+    maximumFractionDigits: price < 10 ? 5 : 2,
+  });
+
+  async function trade() {
+    if (!Number.isFinite(qty) || qty <= 0) {
+      setStatus('Enter a quantity greater than zero.');
+      return;
+    }
+
+    setWorking(true);
+    setStatus('');
+
+    try {
+      const result = await placeVirtualOrder(selected.symbol, side, qty);
+      await reloadPositions();
+      await refreshProfile();
+
+      const newBalance = Number(result?.new_balance || 0).toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+
+      setStatus(
+        (side === 'buy' ? 'Bought ' : 'Sold ') +
+        qty +
+        ' ' +
+        selected.symbol +
+        ' at $' +
+        Number(result?.filled_price || price).toLocaleString() +
+        '. New demo balance: $' +
+        newBalance
+      );
+    } catch (error) {
+      setStatus(error.message);
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  return (
+    <>
+      <ScreenHeader title="Demo Trading" onBack={onBack} />
+      <Text style={s.helperText}>Server-held demo prices. No real-money trading.</Text>
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.assetRow}>
+        {markets.map((market) => (
+          <Pressable
+            key={market.symbol}
+            style={[s.assetChip, selected?.symbol === market.symbol && s.assetChipActive]}
+            onPress={() => setSelected(market)}
+          >
+            <Text style={[s.assetChipText, selected?.symbol === market.symbol && s.assetChipTextActive]}>{market.symbol}</Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+
+      <View style={s.quoteCard}>
+        <Text style={s.cardLabel}>{selected?.display_name}</Text>
+        <Text style={s.quotePrice}>{'$' + priceText}</Text>
+        <Text style={s.faintText}>Demo quote • {selected?.asset_type}</Text>
+      </View>
+
+      <View style={s.tradeSideRow}>
+        <Pressable style={[s.sideButton, side === 'buy' && s.buyActive]} onPress={() => setSide('buy')}>
+          <Text style={[s.sideText, side === 'buy' && s.sideActive]}>BUY</Text>
+        </Pressable>
+        <Pressable style={[s.sideButton, side === 'sell' && s.sellActive]} onPress={() => setSide('sell')}>
+          <Text style={[s.sideText, side === 'sell' && s.sideActive]}>SELL</Text>
+        </Pressable>
+      </View>
+
+      <Text style={s.fieldLabel}>Quantity</Text>
+      <TextInput
+        style={s.input}
+        keyboardType="decimal-pad"
+        value={quantity}
+        onChangeText={setQuantity}
+        placeholder="0.01"
+        placeholderTextColor={C.faint}
+      />
+
+      <View style={s.tradeSummary}>
+        <Text style={s.summaryLabel}>Estimated value</Text>
+        <Text style={s.summaryValue}>
+          {'$' + value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </Text>
+      </View>
+
+      {!!status && <Text style={[s.message, (status.indexOf('Bought') === 0 || status.indexOf('Sold') === 0) && s.success]}>{status}</Text>}
+
+      <Pressable style={s.primaryButton} onPress={trade} disabled={working}>
+        {working ? <ActivityIndicator color={C.accentText} /> : <Text style={s.primaryText}>{side === 'buy' ? 'Place Demo Buy' : 'Place Demo Sell'}</Text>}
+      </Pressable>
+
+      <Text style={s.section}>Your positions</Text>
+      {positions.length === 0 ? (
+        <EmptyState text="No open demo positions yet." />
+      ) : (
+        positions.map((position) => (
+          <View key={position.symbol} style={s.listRow}>
+            <View style={s.listGrow}>
+              <Text style={s.listTitle}>{position.symbol}</Text>
+              <Text style={s.listSubtitle}>
+                Qty {Number(position.quantity).toLocaleString()} • Avg {'$' + Number(position.avg_price).toLocaleString()}
+              </Text>
+            </View>
+            <Text style={s.listValue}>Open</Text>
+          </View>
+        ))
+      )}
+    </>
+  );
 }
 
-function MenuCard({ icon, title, subtitle }) {
-  return <TouchableOpacity style={styles.menuCard}><Text style={styles.menuIcon}>{icon}</Text><View style={styles.menuText}><Text style={styles.menuTitle}>{title}</Text><Text style={styles.menuSubtitle}>{subtitle}</Text></View><Text style={styles.chevron}>›</Text></TouchableOpacity>;
+function AcademyScreen({ onBack }) {
+  const lessons = [
+    ['1. What moves a market?', 'Learn supply, demand, buyers, sellers, and why price changes.'],
+    ['2. Reading a candle', 'Understand open, high, low, and close without assuming the next candle.'],
+    ['3. Risk before reward', 'Learn why position size and loss limits matter more than chasing wins.'],
+    ['4. Trading psychology', 'Recognize fear, greed, revenge trading, and overconfidence.'],
+  ];
+  const [selected, setSelected] = useState(0);
+
+  return (
+    <>
+      <ScreenHeader title="Trading Academy" onBack={onBack} />
+      <Text style={s.helperText}>Short lessons designed for practice inside the simulator.</Text>
+      {lessons.map((lesson, i) => (
+        <Pressable key={lesson[0]} style={[s.lessonCard, selected === i && s.lessonActive]} onPress={() => setSelected(i)}>
+          <Text style={s.lessonNumber}>LESSON {i + 1}</Text>
+          <Text style={s.lessonTitle}>{lesson[0]}</Text>
+        </Pressable>
+      ))}
+      <View style={s.lessonDetail}>
+        <Text style={s.detailTitle}>{lessons[selected][0]}</Text>
+        <Text style={s.bodyText}>{lessons[selected][1]}</Text>
+      </View>
+      <View style={s.infoCallout}>
+        <Text style={s.infoTitle}>Next backend pass</Text>
+        <Text style={s.bodyText}>Saved lesson progress, quizzes, and server-side point awards come after this foundation is stable.</Text>
+      </View>
+    </>
+  );
 }
 
-const styles = StyleSheet.create({
-  flex:{flex:1}, container:{flex:1,backgroundColor:'#080B12'}, center:{flex:1,backgroundColor:'#080B12',alignItems:'center',justifyContent:'center'},
-  loadingText:{color:'#9AA4B2',marginTop:12}, authContent:{flexGrow:1,justifyContent:'center',padding:24}, homeContent:{padding:20,paddingBottom:40},
-  logoMark:{width:58,height:58,borderRadius:17,backgroundColor:'#D9B44A',alignItems:'center',justifyContent:'center',marginBottom:14},
-  logoMarkText:{color:'#08101C',fontSize:20,fontWeight:'900'}, logo:{color:'#F5D76E',fontSize:30,fontWeight:'800'},
-  tagline:{color:'#8D98A8',fontSize:14,marginTop:5,marginBottom:25}, authCard:{backgroundColor:'#111827',borderRadius:22,padding:22,borderWidth:1,borderColor:'#263244'},
-  title:{color:'#FFFFFF',fontSize:24,fontWeight:'800'}, subtitle:{color:'#9AA4B2',fontSize:14,lineHeight:21,marginTop:8,marginBottom:20},
-  input:{backgroundColor:'#0B111C',color:'#FFFFFF',borderWidth:1,borderColor:'#2A3547',borderRadius:13,paddingHorizontal:15,height:52,marginBottom:12,fontSize:15},
-  message:{color:'#F5D76E',lineHeight:20,marginBottom:12}, primaryButton:{height:52,borderRadius:13,backgroundColor:'#D9B44A',alignItems:'center',justifyContent:'center',marginTop:4},
-  primaryText:{color:'#08101C',fontSize:16,fontWeight:'800'}, switchButton:{paddingTop:18,alignItems:'center'}, switchText:{color:'#AEB8C6',fontSize:13,textAlign:'center'},
-  headerRow:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',marginTop:10}, eyebrow:{color:'#D9B44A',fontSize:11,fontWeight:'800',letterSpacing:1.4},
-  greeting:{color:'#FFFFFF',fontSize:25,fontWeight:'800',marginTop:4}, signOut:{color:'#9AA4B2',fontSize:13},
-  balanceCard:{backgroundColor:'#111827',borderRadius:20,padding:22,borderWidth:1,borderColor:'#263244'}, cardLabel:{color:'#9AA4B2',fontSize:13},
-  balance:{color:'#FFFFFF',fontSize:35,fontWeight:'800',marginTop:8}, demoLabel:{color:'#657184',fontSize:10,fontWeight:'700',letterSpacing:1,marginTop:9},
-  statsRow:{flexDirection:'row',gap:12,marginTop:14}, statCard:{flex:1,backgroundColor:'#111827',borderRadius:16,padding:17,borderWidth:1,borderColor:'#263244'},
-  statValue:{color:'#FFFFFF',fontSize:20,fontWeight:'800',marginTop:7}, section:{color:'#FFFFFF',fontSize:20,fontWeight:'800',marginTop:27,marginBottom:12},
-  menuCard:{flexDirection:'row',alignItems:'center',backgroundColor:'#111827',borderRadius:16,padding:15,borderWidth:1,borderColor:'#202938',marginBottom:10},
-  menuIcon:{fontSize:23,width:40}, menuText:{flex:1}, menuTitle:{color:'#FFFFFF',fontSize:16,fontWeight:'700'}, menuSubtitle:{color:'#7F8A9A',fontSize:12,marginTop:3}, chevron:{color:'#657184',fontSize:27,marginLeft:8}
+function ChallengesScreen({ profile, onBack }) {
+  const [started, setStarted] = useState(null);
+  const challenges = [
+    ['Market Basics', 'Explain why price can rise while some traders sell.', 25],
+    ['Risk Check', 'Choose a position size without risking the whole demo balance.', 40],
+    ['Trend Practice', 'Identify a trend before placing a demo trade.', 50],
+  ];
+
+  return (
+    <>
+      <ScreenHeader title="Challenges" onBack={onBack} />
+      <View style={s.balanceMini}>
+        <Text style={s.cardLabel}>Current points</Text>
+        <Text style={s.statValue}>★ {Number(profile?.points ?? 0).toLocaleString()}</Text>
+      </View>
+      {challenges.map((challenge) => (
+        <View key={challenge[0]} style={s.challengeCard}>
+          <View style={s.challengeTop}>
+            <Text style={s.challengeTitle}>{challenge[0]}</Text>
+            <Text style={s.reward}>+{challenge[2]} pts</Text>
+          </View>
+          <Text style={s.bodyText}>{challenge[1]}</Text>
+          <Pressable style={s.secondaryButton} onPress={() => setStarted(challenge[0])}>
+            <Text style={s.secondaryText}>{started === challenge[0] ? 'Challenge started' : 'Start challenge'}</Text>
+          </Pressable>
+        </View>
+      ))}
+    </>
+  );
+}
+
+function NewsScreen({ onBack }) {
+  const briefs = [
+    ['Why news moves price', 'News changes expectations about future value and risk.'],
+    ['Interest rates', 'Borrowing costs can affect demand across markets.'],
+    ['Crypto volatility', 'Crypto markets can move quickly as participation and sentiment change.'],
+    ['Company earnings', 'Earnings reports can change how investors value a company.'],
+  ];
+
+  return (
+    <>
+      <ScreenHeader title="Market News" onBack={onBack} />
+      <View style={s.infoCallout}>
+        <Text style={s.infoTitle}>Demo market brief</Text>
+        <Text style={s.bodyText}>These are educational summaries. Live news will use an authorized feed with attribution before release.</Text>
+      </View>
+      {briefs.map((item) => (
+        <View key={item[0]} style={s.listRow}>
+          <View style={s.listGrow}>
+            <Text style={s.listTitle}>{item[0]}</Text>
+            <Text style={s.listSubtitle}>{item[1]}</Text>
+          </View>
+        </View>
+      ))}
+    </>
+  );
+}
+
+function RewardsScreen({ profile, onBack }) {
+  return (
+    <>
+      <ScreenHeader title="Points & Rewards" onBack={onBack} />
+      <View style={s.balanceMini}>
+        <Text style={s.cardLabel}>Points</Text>
+        <Text style={s.bigMetric}>★ {Number(profile?.points ?? 0).toLocaleString()}</Text>
+      </View>
+      <View style={s.infoCallout}>
+        <Text style={s.infoTitle}>No cash withdrawals</Text>
+        <Text style={s.bodyText}>TradeLord Quest points are virtual progression points, not money.</Text>
+      </View>
+      <Text style={s.section}>Planned earning routes</Text>
+      <Text style={s.bodyText}>Lessons, quizzes, challenges, competitions, streaks, and referrals can award points. Server-side rules will control the real rewards.</Text>
+    </>
+  );
+}
+
+function PremiumScreen({ onBack }) {
+  return (
+    <>
+      <ScreenHeader title="Premium" onBack={onBack} />
+      <Text style={s.helperText}>Reference launch pricing. Purchases are not connected yet.</Text>
+      <Plan title="Africa reference" monthly="$5.99 / month" yearly="$49.99 / year" />
+      <Plan title="Rest-of-world reference" monthly="$6.99 / month" yearly="$54.99 / year" />
+      <View style={s.infoCallout}>
+        <Text style={s.infoTitle}>Purchase layer comes later</Text>
+        <Text style={s.bodyText}>Google Play Billing and subscription verification must be connected server-side before these become real purchases.</Text>
+      </View>
+    </>
+  );
+}
+
+function Plan({ title, monthly, yearly }) {
+  return (
+    <View style={s.planCard}>
+      <Text style={s.planTitle}>{title}</Text>
+      <Text style={s.planPrice}>{monthly}</Text>
+      <Text style={s.planYearly}>{yearly}</Text>
+      <Text style={s.bodyText}>More AI Teacher access, advanced lessons, advanced analysis, premium challenges, and no ads.</Text>
+    </View>
+  );
+}
+
+function AiScreen({ onBack }) {
+  const [question, setQuestion] = useState('');
+  const [prepared, setPrepared] = useState(false);
+
+  return (
+    <>
+      <ScreenHeader title="AI Teacher" onBack={onBack} />
+      <View style={s.infoCallout}>
+        <Text style={s.infoTitle}>Secure AI design</Text>
+        <Text style={s.bodyText}>The mobile app will not contain an OpenAI API key. The final teacher will use a secure server endpoint and server-side usage limits.</Text>
+      </View>
+      <Text style={s.fieldLabel}>Your question</Text>
+      <TextInput
+        style={[s.input, s.textArea]}
+        multiline
+        value={question}
+        onChangeText={(value) => { setQuestion(value); setPrepared(false); }}
+        placeholder="Example: What does RSI measure?"
+        placeholderTextColor={C.faint}
+      />
+      <Pressable style={s.secondaryButton} onPress={() => setPrepared(Boolean(question.trim()))}>
+        <Text style={s.secondaryText}>Prepare question</Text>
+      </Pressable>
+      {prepared && (
+        <View style={s.lessonDetail}>
+          <Text style={s.detailTitle}>Question prepared</Text>
+          <Text style={s.bodyText}>{question.trim()}</Text>
+          <Text style={s.helperText}>Live AI answering waits for the secure backend connection.</Text>
+        </View>
+      )}
+    </>
+  );
+}
+
+function AccountScreen({ session, profile, onBack, onSignOut, working }) {
+  return (
+    <>
+      <ScreenHeader title="Account" onBack={onBack} />
+      <View style={s.accountCard}>
+        <Text style={s.cardLabel}>Email</Text>
+        <Text style={s.accountValue}>{session.user.email}</Text>
+        <Text style={[s.cardLabel, s.accountGap]}>Display name</Text>
+        <Text style={s.accountValue}>{profile?.display_name || 'Not set'}</Text>
+        <Text style={[s.cardLabel, s.accountGap]}>Starting demo balance</Text>
+        <Text style={s.accountValue}>$10,000.00</Text>
+      </View>
+      <Pressable style={s.dangerButton} onPress={onSignOut} disabled={working}>
+        {working ? <ActivityIndicator /> : <Text style={s.dangerText}>Sign out</Text>}
+      </Pressable>
+    </>
+  );
+}
+
+function ScreenHeader({ title, onBack }) {
+  return (
+    <View style={s.screenHeader}>
+      <Pressable onPress={onBack} style={s.backButton}><Text style={s.backText}>‹</Text></Pressable>
+      <Text style={s.screenTitle}>{title}</Text>
+      <View style={s.headerSpacer} />
+    </View>
+  );
+}
+
+function MenuCard({ icon, title, subtitle, onPress }) {
+  return (
+    <Pressable style={s.menuCard} onPress={onPress}>
+      <View style={s.menuIconBox}><Text style={s.menuIcon}>{icon}</Text></View>
+      <View style={s.menuText}>
+        <Text style={s.menuTitle}>{title}</Text>
+        <Text style={s.menuSubtitle}>{subtitle}</Text>
+      </View>
+      <Text style={s.chevron}>›</Text>
+    </Pressable>
+  );
+}
+
+function EmptyState({ text }) {
+  return <View style={s.emptyState}><Text style={s.faintText}>{text}</Text></View>;
+}
+
+const s = StyleSheet.create({
+  flex: { flex: 1 },
+  container: { flex: 1, backgroundColor: C.bg },
+  center: { flex: 1, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center' },
+  loading: { color: C.muted, marginTop: 12 },
+
+  authContent: { flexGrow: 1, justifyContent: 'center', padding: 24 },
+  authBrand: { marginBottom: 24 },
+  logoMark: { width: 58, height: 58, borderRadius: 17, backgroundColor: C.accent, alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
+  logoMarkText: { color: C.accentText, fontSize: 20, fontWeight: '900' },
+  logo: { color: '#F5D76E', fontSize: 30, fontWeight: '800' },
+  tagline: { color: C.muted, fontSize: 14, marginTop: 5, marginBottom: 25 },
+  authCard: { backgroundColor: C.card, borderRadius: 22, padding: 22, borderWidth: 1, borderColor: C.border },
+  title: { color: C.text, fontSize: 24, fontWeight: '800' },
+  subtitle: { color: C.muted, fontSize: 14, lineHeight: 21, marginTop: 8, marginBottom: 20 },
+  input: { backgroundColor: '#0B111C', color: C.text, borderWidth: 1, borderColor: '#2A3547', borderRadius: 13, paddingHorizontal: 15, minHeight: 52, marginBottom: 12, fontSize: 15 },
+  textArea: { minHeight: 120, paddingTop: 14, textAlignVertical: 'top' },
+  message: { color: C.accent, lineHeight: 20, marginBottom: 12 },
+  success: { color: C.success },
+  primaryButton: { minHeight: 52, borderRadius: 13, backgroundColor: C.accent, alignItems: 'center', justifyContent: 'center', marginTop: 4, paddingHorizontal: 18 },
+  primaryText: { color: C.accentText, fontSize: 16, fontWeight: '800' },
+  switchButton: { paddingTop: 18, alignItems: 'center' },
+  switchText: { color: '#AEB8C6', fontSize: 13, textAlign: 'center' },
+
+  content: { padding: 20, paddingBottom: 34 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 },
+  headerLeft: { flex: 1, paddingRight: 12 },
+  eyebrow: { color: C.accent, fontSize: 11, fontWeight: '800', letterSpacing: 1.4 },
+  greeting: { color: C.text, fontSize: 25, fontWeight: '800', marginTop: 4 },
+  accountButton: { color: C.muted, fontSize: 13 },
+
+  balanceCard: { backgroundColor: C.card, borderRadius: 20, padding: 22, borderWidth: 1, borderColor: C.border },
+  cardLabel: { color: C.muted, fontSize: 13 },
+  balance: { color: C.text, fontSize: 35, fontWeight: '800', marginTop: 8 },
+  demoLabel: { color: C.faint, fontSize: 10, fontWeight: '700', letterSpacing: 1, marginTop: 9 },
+  statsRow: { flexDirection: 'row', marginTop: 14 },
+  statCard: { flex: 1, backgroundColor: C.card, borderRadius: 16, padding: 17, borderWidth: 1, borderColor: C.border, marginRight: 12 },
+  statValue: { color: C.text, fontSize: 20, fontWeight: '800', marginTop: 7 },
+  section: { color: C.text, fontSize: 20, fontWeight: '800', marginTop: 27, marginBottom: 12 },
+
+  menuCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.card, borderRadius: 16, padding: 15, borderWidth: 1, borderColor: '#202938', marginBottom: 10 },
+  menuIconBox: { width: 40, height: 40, borderRadius: 12, backgroundColor: C.card2, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
+  menuIcon: { color: C.accent, fontSize: 19, fontWeight: '900' },
+  menuText: { flex: 1 },
+  menuTitle: { color: C.text, fontSize: 16, fontWeight: '700' },
+  menuSubtitle: { color: '#7F8A9A', fontSize: 12, marginTop: 3 },
+  chevron: { color: C.faint, fontSize: 27, marginLeft: 8 },
+
+  bottomNav: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: C.border, backgroundColor: C.card, paddingTop: 7, paddingBottom: Platform.OS === 'android' ? 8 : 12 },
+  navItem: { flex: 1, alignItems: 'center', paddingVertical: 5 },
+  navIcon: { color: C.faint, fontSize: 19, fontWeight: '800' },
+  navLabel: { color: C.faint, fontSize: 10, marginTop: 2 },
+  active: { color: C.accent },
+
+  screenHeader: { flexDirection: 'row', alignItems: 'center', marginTop: 4, marginBottom: 12 },
+  backButton: { width: 44, minHeight: 44, justifyContent: 'center' },
+  backText: { color: C.text, fontSize: 34, lineHeight: 38 },
+  screenTitle: { flex: 1, color: C.text, fontSize: 25, fontWeight: '800' },
+  headerSpacer: { width: 44 },
+  helperText: { color: C.muted, fontSize: 13, lineHeight: 20, marginBottom: 14 },
+  bodyText: { color: C.muted, fontSize: 14, lineHeight: 21 },
+  faintText: { color: C.faint, fontSize: 12 },
+
+  assetRow: { paddingBottom: 12 },
+  assetChip: { borderWidth: 1, borderColor: C.border, backgroundColor: C.card, paddingHorizontal: 15, minHeight: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center', marginRight: 8 },
+  assetChipActive: { borderColor: C.accent, backgroundColor: '#1C1B13' },
+  assetChipText: { color: C.muted, fontWeight: '700' },
+  assetChipTextActive: { color: C.accent },
+  quoteCard: { backgroundColor: C.card, borderRadius: 20, padding: 22, borderWidth: 1, borderColor: C.border },
+  quotePrice: { color: C.text, fontSize: 35, fontWeight: '800', marginVertical: 7 },
+  tradeSideRow: { flexDirection: 'row', marginTop: 14, marginBottom: 14 },
+  sideButton: { flex: 1, minHeight: 50, borderRadius: 13, borderWidth: 1, borderColor: C.border, alignItems: 'center', justifyContent: 'center', marginRight: 8, backgroundColor: C.card },
+  buyActive: { borderColor: C.success, backgroundColor: '#102017' },
+  sellActive: { borderColor: C.danger, backgroundColor: '#211111' },
+  sideText: { color: C.muted, fontWeight: '900' },
+  sideActive: { color: C.text },
+  fieldLabel: { color: C.muted, fontSize: 13, marginBottom: 7, marginTop: 4 },
+  tradeSummary: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: C.card2, borderRadius: 14, padding: 15, marginBottom: 12 },
+  summaryLabel: { color: C.muted, fontSize: 13 },
+  summaryValue: { color: C.text, fontWeight: '800', fontSize: 15 },
+
+  listRow: { backgroundColor: C.card, borderRadius: 15, padding: 15, borderWidth: 1, borderColor: C.border, marginBottom: 9, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  listGrow: { flex: 1, paddingRight: 10 },
+  listTitle: { color: C.text, fontWeight: '800', fontSize: 15 },
+  listSubtitle: { color: C.muted, fontSize: 12, marginTop: 4, lineHeight: 18 },
+  listValue: { color: C.accent, fontSize: 12, fontWeight: '800' },
+  emptyState: { borderWidth: 1, borderColor: C.border, borderRadius: 15, padding: 18, backgroundColor: C.card },
+
+  lessonCard: { backgroundColor: C.card, borderWidth: 1, borderColor: C.border, borderRadius: 15, padding: 16, marginBottom: 9 },
+  lessonActive: { borderColor: C.accent },
+  lessonNumber: { color: C.accent, fontSize: 10, fontWeight: '800' },
+  lessonTitle: { color: C.text, fontSize: 16, fontWeight: '800', marginTop: 5 },
+  lessonDetail: { backgroundColor: C.card, borderRadius: 18, borderWidth: 1, borderColor: C.border, padding: 19, marginTop: 5 },
+  detailTitle: { color: C.text, fontSize: 18, fontWeight: '800', marginBottom: 8 },
+
+  infoCallout: { backgroundColor: '#121A25', borderLeftWidth: 3, borderLeftColor: C.accent, borderRadius: 12, padding: 15, marginBottom: 14 },
+  infoTitle: { color: C.text, fontWeight: '800', marginBottom: 5 },
+  balanceMini: { backgroundColor: C.card, borderRadius: 16, borderWidth: 1, borderColor: C.border, padding: 17, marginBottom: 12 },
+  bigMetric: { color: C.text, fontSize: 30, fontWeight: '800', marginTop: 6 },
+
+  challengeCard: { backgroundColor: C.card, borderRadius: 17, borderWidth: 1, borderColor: C.border, padding: 17, marginBottom: 11 },
+  challengeTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 },
+  challengeTitle: { color: C.text, fontSize: 16, fontWeight: '800' },
+  reward: { color: C.accent, fontSize: 12, fontWeight: '900' },
+  secondaryButton: { minHeight: 46, borderRadius: 12, borderWidth: 1, borderColor: C.border, backgroundColor: C.card2, justifyContent: 'center', alignItems: 'center', marginTop: 12, paddingHorizontal: 14 },
+  secondaryText: { color: C.text, fontSize: 14, fontWeight: '800' },
+
+  planCard: { backgroundColor: C.card, borderRadius: 18, borderWidth: 1, borderColor: C.border, padding: 19, marginBottom: 12 },
+  planTitle: { color: C.text, fontSize: 17, fontWeight: '800' },
+  planPrice: { color: C.accent, fontSize: 27, fontWeight: '900', marginTop: 7 },
+  planYearly: { color: C.muted, fontSize: 14, marginTop: 3, marginBottom: 10 },
+
+  accountCard: { backgroundColor: C.card, borderRadius: 18, borderWidth: 1, borderColor: C.border, padding: 19 },
+  accountValue: { color: C.text, fontSize: 16, fontWeight: '700', marginTop: 5 },
+  accountGap: { marginTop: 18 },
+  dangerButton: { minHeight: 52, borderRadius: 13, borderWidth: 1, borderColor: '#5A2929', backgroundColor: '#1D1010', alignItems: 'center', justifyContent: 'center', marginTop: 14 },
+  dangerText: { color: C.danger, fontSize: 15, fontWeight: '900' },
 });
