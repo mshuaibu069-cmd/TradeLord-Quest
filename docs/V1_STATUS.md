@@ -30,7 +30,7 @@ Updated: 2026-09-30
 - Demo orders use the server-held demo price.
 - The order RPC is executable by authenticated users only.
 - OpenAI API keys must never be shipped in the mobile app.
-- Points, Premium, competitions, and other important rewards must be server-validated before release.
+- Points, Premium, competitions, and other important rewards must be server-validated before release. Profile fields such as virtual balance, points, streak, and premium status are not client-writable; display name is the only profile update exposed to the app.
 
 ## Still required before production
 1. Saved academy progress and quizzes.
