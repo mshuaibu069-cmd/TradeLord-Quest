@@ -37,7 +37,7 @@ Updated: 2026-09-30
 - Points, Premium, competitions, and other important rewards must be server-validated before release. Profile fields such as virtual balance, points, streak, and premium status are not client-writable; display name is the only profile update exposed to the app.
 
 ## Still required before production
-- Native push-notification package/credentials and EAS rebuild so support updates can reach users while the app is closed.
+- EAS Android push-notification credentials/rebuild and a real-device permission test so support updates can reach users while the app is closed.
 - Owner/admin dashboard for reviewing the support-agent queue and making decisions.
 1. Saved academy progress and quizzes.
 2. Persistent challenge/competition system and leaderboard.
