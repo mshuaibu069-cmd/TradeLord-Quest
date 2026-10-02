@@ -149,7 +149,7 @@ Deno.serve(async (req: Request) => {
         ["Telegram bot", Boolean(TELEGRAM_BOT_TOKEN)],
         ["Owner chat lock", Boolean(MODAX_OWNER_CHAT_ID)],
         ["OpenAI", Boolean(OPENAI_API_KEY)],
-        ["Supabase logging", Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY)],
+        ["Supabase logging", Boolean(SUPABASE_URL && SUPABASE_SECRET_KEYS)],
       ];
 
       const status = configured
