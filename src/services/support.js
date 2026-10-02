@@ -21,6 +21,15 @@ export async function createSupportTicket({ category, subject, message }) {
     .single();
 
   if (error) throw error;
+
+  // The agent runs server-side with JWT verification. The mobile app never holds
+  // an AI/service-role secret.
+  try {
+    await supabase.functions.invoke('support-agent', { body: { ticket_id: data.id } });
+  } catch (_) {
+    // A support-agent outage must never prevent the complaint from being submitted.
+  }
+
   return data;
 }
 
