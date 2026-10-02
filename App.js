@@ -47,9 +47,10 @@ const C = {
 const NAV = [
   { key: 'home', label: 'Home', icon: '⌂' },
   { key: 'trade', label: 'Trade', icon: '↗' },
-  { key: 'academy', label: 'Learn', icon: '▣' },
-  { key: 'challenges', label: 'Challenges', icon: '★' },
+  { key: 'academy', label: 'Academy', icon: '▣' },
   { key: 'news', label: 'News', icon: '◉' },
+  { key: 'ai', label: 'AI Teacher', icon: 'AI' },
+  { key: 'more', label: 'More', icon: '☰' },
 ];
 
 export default function App() {
@@ -263,9 +264,10 @@ export default function App() {
           {screen === 'academy' && <AcademyScreen {...common} />}
           {screen === 'challenges' && <ChallengesScreen {...common} />}
           {screen === 'news' && <NewsScreen {...common} />}
-          {screen === 'rewards' && <RewardsScreen {...common} />}
-          {screen === 'premium' && <PremiumScreen {...common} />}
           {screen === 'ai' && <AiScreen {...common} />}
+          {screen === 'more' && <MoreScreen {...common} />}
+          {screen === 'rewards' && <RewardsScreen {...common} />
+          {screen === 'premium' && <PremiumScreen {...common} />}
           {screen === 'account' && <AccountScreen {...common} onSignOut={logout} working={working} />}
           {screen === 'support' && <SupportScreen {...common} />}
           {screen === 'privacy' && <PrivacyScreen {...common} />}
@@ -577,6 +579,31 @@ function NewsScreen({ onBack }) {
           </View>
         </View>
       ))}
+    </>
+  );
+}
+
+function MoreScreen({ onBack, setScreen }) {
+  return (
+    <>
+      <ScreenHeader title="More" onBack={onBack} />
+      <Text style={s.helperText}>The bottom navigation stays focused on the six areas you use most. The rest is here.</Text>
+
+      <Text style={s.section}>Your tools</Text>
+      <MenuCard icon="★" title="Challenges & Competition" subtitle="Challenges, competitions, leaderboards, and rewards" onPress={() => setScreen('challenges')} />
+      <MenuCard icon="✦" title="Points & Rewards" subtitle="Track points, streaks, and progression" onPress={() => setScreen('rewards')} />
+      <MenuCard icon="◆" title="Premium" subtitle="More AI, advanced learning, and no ads" onPress={() => setScreen('premium')} />
+
+      <Text style={s.section}>Account & protection</Text>
+      <MenuCard icon="●" title="Profile & Account" subtitle="Account details, sign out, and deletion request" onPress={() => setScreen('account')} />
+      <MenuCard icon="?" title="Help & Complaints" subtitle="Report bugs, privacy, security, billing, or account problems" onPress={() => setScreen('support')} />
+      <MenuCard icon="✓" title="Privacy & Security" subtitle="Data controls, security monitoring, and your rights" onPress={() => setScreen('privacy')} />
+      <MenuCard icon="§" title="Terms & Rules" subtitle="Service rules and educational-simulator limits" onPress={() => setScreen('terms')} />
+
+      <View style={s.infoCallout}>
+        <Text style={s.infoTitle}>Six-item navigation</Text>
+        <Text style={s.bodyText}>Home, Trade, Academy, News, AI Teacher, and More stay visible. Other sections remain available from More instead of crowding the bottom bar.</Text>
+      </View>
     </>
   );
 }
