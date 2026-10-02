@@ -266,7 +266,7 @@ export default function App() {
           {screen === 'news' && <NewsScreen {...common} />}
           {screen === 'ai' && <AiScreen {...common} />}
           {screen === 'more' && <MoreScreen {...common} />}
-          {screen === 'rewards' && <RewardsScreen {...common} />
+          {screen === 'rewards' && <RewardsScreen {...common} />}
           {screen === 'premium' && <PremiumScreen {...common} />}
           {screen === 'account' && <AccountScreen {...common} onSignOut={logout} working={working} />}
           {screen === 'support' && <SupportScreen {...common} />}
