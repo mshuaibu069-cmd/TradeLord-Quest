@@ -15,6 +15,7 @@ import {
 import { supabase } from './supabase';
 import { signIn, signOut as signOutUser, signUp } from './src/services/auth';
 import { getCurrentProfile } from './src/services/profile';
+import { registerDeviceForPush } from './src/services/notifications';
 import {
   createSupportTicket,
   getMySupportTickets,
@@ -80,6 +81,7 @@ export default function App() {
       if (result.data.session) {
         try {
           setProfile(await getCurrentProfile());
+          registerDeviceForPush(result.data.session.user.id).catch(() => {});
         } catch (error) {
           setMessage(error.message);
         }
@@ -97,6 +99,7 @@ export default function App() {
       if (nextSession) {
         try {
           setProfile(await getCurrentProfile());
+          registerDeviceForPush(nextSession.user.id).catch(() => {});
         } catch (error) {
           setMessage(error.message);
         }
