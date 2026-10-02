@@ -34,4 +34,4 @@ Do not use surveillance-style messages unless the underlying event actually occu
 The support agent receives only the information needed for the support task. Sensitive data should be redacted before sending it to an external AI provider where practical.
 
 ## Current implementation
-The app now has a secure support-ticket table, privacy settings, complaint UI, and account-deletion request flow. The actual AI reasoning layer should be server-side and added only after the secure endpoint and provider policy are configured.
+The app has a secure support-ticket table, privacy settings, complaint UI, account-deletion request flow, and a deployed `support-agent` Supabase Edge Function. The function is JWT-protected, performs safe server-side triage, can escalate harder cases, and can optionally use an owner-configured AI provider without putting an AI key in the APK. If no AI provider key is configured, it uses the safe rules-based fallback. Push notification delivery is prepared through `user_devices`; native push delivery still requires the Expo notification package and an EAS rebuild.
