@@ -116,7 +116,7 @@ Deno.serve(async (req) => {
     }
 
     await admin.from("support_tickets").update({
-      status: result.requiresHuman ? "needs_human" : "triaged",
+      status: result.requiresHuman ? "escalated" : "triaged",
       priority: result.priority,
       ai_summary: summary,
       ai_recommendation: result.recommendation,
@@ -152,7 +152,7 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({
       ok: true,
       ticket_id: ticket.id,
-      status: result.requiresHuman ? "needs_human" : "triaged",
+      status: result.requiresHuman ? "escalated" : "triaged",
       priority: result.priority,
       requires_human: result.requiresHuman,
       agent_version: agentVersion,
