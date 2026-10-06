@@ -4,12 +4,24 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
-const levels = ["observe", "analyze", "recommend", "simulate", "safe_automation", "human_approval", "critical_owner"] as const;
+const levels = ["observe", "analyze", "recommend", "simulate", "safe_automation", "human_approval", "critical_owner_action"] as const;
 const risks = ["low", "medium", "high", "critical"] as const;
 
 function levelRank(level: string) {
   const i = levels.indexOf(level as typeof levels[number]);
   return i < 0 ? -1 : i;
+}
+
+function jwtAal(auth: string) {
+  try {
+    const token = auth.slice("Bearer ".length).split(".")[1];
+    const normalized = token.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+    const payload = JSON.parse(atob(padded));
+    return payload.aal === "aal2" ? "aal2" : "aal1";
+  } catch {
+    return "aal1";
+  }
 }
 
 Deno.serve(async (req) => {
@@ -31,6 +43,7 @@ Deno.serve(async (req) => {
     const role = user.app_metadata?.role;
     if (role !== "owner" && role !== "super_admin") return json({ error: "Owner authorization required." }, 403);
 
+    const aal = jwtAal(auth);
     const admin = createClient(supabaseUrl, serviceKey);
     const body = await req.json();
 
@@ -73,7 +86,6 @@ Deno.serve(async (req) => {
     const agentRank = levelRank(agent.permission_level);
     const requestedRank = levelRank(actionLevel);
 
-    // Optional per-agent policy can further restrict the agent baseline.
     const { data: policy } = await admin.schema("veqoro").from("permission_policies")
       .select("decision_mode,allowed_environment,resource_scope,enabled")
       .eq("agent_id", agent.id).eq("action_key", actionKey).maybeSingle();
@@ -89,6 +101,14 @@ Deno.serve(async (req) => {
       requestedRank >= levelRank("safe_automation") ||
       policy?.decision_mode === "human_approval";
 
+    if (approvalRequired && (riskLevel === "high" || riskLevel === "critical") && aal !== "aal2") {
+      return json({
+        error: "AAL2 MFA is required for high-risk or critical owner control-plane actions.",
+        required_aal: "aal2",
+        current_aal: aal,
+      }, 403);
+    }
+
     if (approvalRequired) {
       const { data: request, error: insertError } = await admin.schema("veqoro").from("permission_requests").insert({
         agent_id: agent.id, action_key: actionKey, resource_type: resourceType, resource_id: resourceId,
@@ -102,7 +122,7 @@ Deno.serve(async (req) => {
         actor_type: "owner", actor_id: user.id, action_key: actionKey,
         resource_type: resourceType, resource_id: resourceId, risk_level: riskLevel,
         permission_request_id: request.id, outcome: "approval_required",
-        metadata: { agent_key: agentKey, action_level: actionLevel, environment }
+        metadata: { agent_key: agentKey, action_level: actionLevel, environment, aal }
       });
 
       return json({ ok: true, status: "approval_required", permission_request_id: request.id });
@@ -113,7 +133,7 @@ Deno.serve(async (req) => {
       actor_type: "owner", actor_id: user.id, action_key: actionKey,
       resource_type: resourceType, resource_id: resourceId, risk_level: riskLevel,
       outcome: "allowed_no_execution",
-      metadata: { agent_key: agentKey, action_level: actionLevel, environment }
+      metadata: { agent_key: agentKey, action_level: actionLevel, environment, aal }
     });
 
     return json({
