@@ -4,6 +4,18 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
+function jwtAal(auth: string) {
+  try {
+    const token = auth.slice("Bearer ".length).split(".")[1];
+    const normalized = token.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+    const payload = JSON.parse(atob(padded));
+    return payload.aal === "aal2" ? "aal2" : "aal1";
+  } catch {
+    return "aal1";
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "POST required." }, 405);
 
@@ -47,6 +59,15 @@ Deno.serve(async (req) => {
     if (requestError || !request) return json({ error: "Permission request not found." }, 404);
     if (request.status !== "pending") return json({ error: "Only pending requests can be decided." }, 409);
 
+    const aal = jwtAal(auth);
+    if ((request.risk_level === "high" || request.risk_level === "critical") && aal !== "aal2") {
+      return json({
+        error: "AAL2 MFA is required to approve or reject high-risk or critical actions.",
+        required_aal: "aal2",
+        current_aal: aal,
+      }, 403);
+    }
+
     const nextStatus = decision === "approve" ? "approved" : "rejected";
 
     const { error: updateError } = await admin
@@ -77,6 +98,7 @@ Deno.serve(async (req) => {
         environment: request.environment,
         note,
         execution: "not_performed",
+        aal,
       },
     });
 
