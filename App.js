@@ -46,7 +46,7 @@ const C = {
 
 const NAV = [
   { key: 'home', label: 'Home', icon: '⌂' },
-  { key: 'trade', label: 'Trade', icon: '↗' },
+  { key: 'trade', label: 'Practice', icon: '↗' },
   { key: 'academy', label: 'Academy', icon: '▣' },
   { key: 'news', label: 'News', icon: '◉' },
   { key: 'ai', label: 'AI Teacher', icon: 'AI' },
@@ -333,9 +333,9 @@ function HomeScreen({ session, profile, setScreen }) {
       </View>
 
       <Text style={s.section}>Continue learning</Text>
-      <MenuCard icon="↗" title="Demo Trading" subtitle="Practice with virtual money" onPress={() => setScreen('trade')} />
+      <MenuCard icon="↗" title="Practice Simulator" subtitle="Practice with virtual money — no real orders" onPress={() => setScreen('trade')} />
       <MenuCard icon="▣" title="Trading Academy" subtitle="Learn the fundamentals step by step" onPress={() => setScreen('academy')} />
-      <MenuCard icon="AI" title="AI Teacher" subtitle="Secure AI interface — backend next" onPress={() => setScreen('ai')} />
+      <MenuCard icon="AI" title="AI Teacher" subtitle="Educational explanations — not financial advice" onPress={() => setScreen('ai')} />
       <MenuCard icon="★" title="Challenges" subtitle="Practice structured trading tasks" onPress={() => setScreen('challenges')} />
       <MenuCard icon="◉" title="Market News" subtitle="Demo market brief while live feed is prepared" onPress={() => setScreen('news')} />
       <MenuCard icon="✦" title="Points & Rewards" subtitle="Track progression and future unlocks" onPress={() => setScreen('rewards')} />
@@ -421,8 +421,11 @@ function TradeScreen({ profile, onBack, refreshProfile }) {
 
   return (
     <>
-      <ScreenHeader title="Demo Trading" onBack={onBack} />
-      <Text style={s.helperText}>Server-held demo prices. No real-money trading.</Text>
+      <ScreenHeader title="Practice Simulator" onBack={onBack} />
+      <View style={s.infoCallout}>
+        <Text style={s.infoTitle}>SIMULATION ONLY</Text>
+        <Text style={s.bodyText}>All balances, prices, orders, and positions here are virtual. TradeLord Quest does not accept deposits, withdrawals, or real-money orders.</Text>
+      </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.assetRow}>
         {markets.map((market) => (
@@ -444,10 +447,10 @@ function TradeScreen({ profile, onBack, refreshProfile }) {
 
       <View style={s.tradeSideRow}>
         <Pressable style={[s.sideButton, side === 'buy' && s.buyActive]} onPress={() => setSide('buy')}>
-          <Text style={[s.sideText, side === 'buy' && s.sideActive]}>BUY</Text>
+          <Text style={[s.sideText, side === 'buy' && s.sideActive]}>SIMULATE BUY</Text>
         </Pressable>
         <Pressable style={[s.sideButton, side === 'sell' && s.sellActive]} onPress={() => setSide('sell')}>
-          <Text style={[s.sideText, side === 'sell' && s.sideActive]}>SELL</Text>
+          <Text style={[s.sideText, side === 'sell' && s.sideActive]}>SIMULATE SELL</Text>
         </Pressable>
       </View>
 
@@ -471,7 +474,7 @@ function TradeScreen({ profile, onBack, refreshProfile }) {
       {!!status && <Text style={[s.message, (status.indexOf('Bought') === 0 || status.indexOf('Sold') === 0) && s.success]}>{status}</Text>}
 
       <Pressable style={s.primaryButton} onPress={trade} disabled={working}>
-        {working ? <ActivityIndicator color={C.accentText} /> : <Text style={s.primaryText}>{side === 'buy' ? 'Place Demo Buy' : 'Place Demo Sell'}</Text>}
+        {working ? <ActivityIndicator color={C.accentText} /> : <Text style={s.primaryText}>{side === 'buy' ? 'Place Simulated Buy' : 'Place Simulated Sell'}</Text>}
       </Pressable>
 
       <Text style={s.section}>Your positions</Text>
@@ -630,7 +633,7 @@ function PremiumScreen({ onBack }) {
   return (
     <>
       <ScreenHeader title="Premium" onBack={onBack} />
-      <Text style={s.helperText}>Reference launch pricing. Purchases are not connected yet.</Text>
+      <Text style={s.helperText}>Reference launch pricing only. Purchases are not connected yet.</Text>
       <Plan title="Africa reference" monthly="$5.99 / month" yearly="$49.99 / year" />
       <Plan title="Rest-of-world reference" monthly="$6.99 / month" yearly="$54.99 / year" />
       <View style={s.infoCallout}>
@@ -647,7 +650,7 @@ function Plan({ title, monthly, yearly }) {
       <Text style={s.planTitle}>{title}</Text>
       <Text style={s.planPrice}>{monthly}</Text>
       <Text style={s.planYearly}>{yearly}</Text>
-      <Text style={s.bodyText}>More AI Teacher access, advanced lessons, advanced analysis, premium challenges, and no ads.</Text>
+      <Text style={s.bodyText}>More AI Teacher access, advanced learning content, premium challenges, and no ads. Premium does not provide real-money trading or guaranteed results.</Text>
     </View>
   );
 }
@@ -660,8 +663,8 @@ function AiScreen({ onBack }) {
     <>
       <ScreenHeader title="AI Teacher" onBack={onBack} />
       <View style={s.infoCallout}>
-        <Text style={s.infoTitle}>Secure AI design</Text>
-        <Text style={s.bodyText}>The mobile app will not contain an OpenAI API key. The final teacher will use a secure server endpoint and server-side usage limits.</Text>
+        <Text style={s.infoTitle}>Educational AI</Text>
+        <Text style={s.bodyText}>The AI Teacher is for education and practice. It must not present guaranteed outcomes or personalized buy/sell instructions. The mobile app will not contain an OpenAI API key; live AI will use a secure server endpoint and server-side limits.</Text>
       </View>
       <Text style={s.fieldLabel}>Your question</Text>
       <TextInput
@@ -862,7 +865,7 @@ function PrivacyScreen({ onBack }) {
     <>
       <ScreenHeader title="Privacy & Security" onBack={onBack} />
       <View style={s.infoCallout}>
-        <Text style={s.infoTitle}>What we protect</Text>
+        <Text style={s.infoTitle}>Privacy by design</Text>
         <Text style={s.bodyText}>TradeLord Quest should collect only data needed for accounts, learning, support, security, and features you choose. Passwords are handled by Supabase Auth; app secrets and AI keys must stay server-side.</Text>
       </View>
 
@@ -906,7 +909,7 @@ function TermsScreen({ onBack }) {
       <ScreenHeader title="Terms & Rules" onBack={onBack} />
       <View style={s.infoCallout}>
         <Text style={s.infoTitle}>Educational simulator</Text>
-        <Text style={s.bodyText}>TradeLord Quest uses virtual money. It is not a broker, exchange, bank, investment service, or promise of profit. AI explanations are educational and are not personalized financial advice.</Text>
+        <Text style={s.bodyText}>TradeLord Quest is an educational simulator using virtual money only. It is not a broker, exchange, bank, investment service, or real-money trading platform. It does not accept deposits or withdrawals and does not promise profits. AI explanations are educational and are not personalized financial advice or guaranteed trading instructions.</Text>
       </View>
 
       <Text style={s.detailTitle}>User responsibilities</Text>
@@ -918,8 +921,8 @@ function TermsScreen({ onBack }) {
       <Text style={s.detailTitle}>AI support</Text>
       <Text style={s.bodyText}>Support automation may classify complaints and prepare responses. Users should be told when automation is used, and sensitive or high-impact cases should be escalated.</Text>
 
-      <Text style={s.detailTitle}>Privacy</Text>
-      <Text style={s.bodyText}>The final public privacy policy will describe data collection, sharing, retention, security, international processing, user rights, and deletion procedures in detail.</Text>
+      <Text style={s.detailTitle}>Privacy and age</Text>
+      <Text style={s.bodyText}>The public privacy policy must describe data collection, sharing, retention, security, international processing, user rights, and deletion procedures. Users must meet applicable age requirements for the service.</Text>
     </>
   );
 }
