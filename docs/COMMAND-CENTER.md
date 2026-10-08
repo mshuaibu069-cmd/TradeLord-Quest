@@ -2,11 +2,9 @@
 
 The independent owner web control surface lives in `command-center/`.
 
-## Intended address
+## Hosting
 
-After GitHub Pages is enabled for the repository with **GitHub Actions** as the publishing source:
-
-`https://mshuaibu069-cmd.github.io/TradeLord-Quest/`
+The protected Command Center should be deployed on a normal HTTPS application host such as Vercel, not GitHub Pages. GitHub Pages is static public hosting and is not the right place for a password-protected owner control surface.
 
 ## Owner access
 
