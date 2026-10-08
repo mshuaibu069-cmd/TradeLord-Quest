@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>VEQORO Command Center</title><meta name="theme-color" content="#080b12"><link rel="stylesheet" href="./styles.css"></head>
+<body>
+<div id="app">
+<section id="loginView" class="screen"><div class="login-card">
+<div class="brand"><div class="vmark">V</div><div><div class="brand-name">VEQORO</div><div class="brand-sub">Command Center</div></div></div>
+<p class="eyebrow">OWNER CONTROL</p><h1>Your AI operations, without the middleman.</h1>
+<p class="muted">Secure owner access to agents, projects, security, costs, profit, risk, Council activity and work results.</p>
+<form id="loginForm"><label>Email<input id="email" type="email" autocomplete="username" required></label><label>Password<input id="password" type="password" autocomplete="current-password" minlength="12" required></label><button class="primary" type="submit">Enter VEQORO</button><button id="resetBtn" class="ghost" type="button">Send password-reset email</button></form>
+<div id="loginMsg" class="message"></div><div class="security-note">Owner-only • Supabase Auth • Server-side secrets • Protected AI control</div>
+</div></section>
+<section id="dashboardView" class="hidden">
+<header class="topbar"><div class="brand compact"><div class="vmark">V</div><div><div class="brand-name">VEQORO</div><div class="brand-sub">Command Center</div></div></div><div class="top-actions"><span id="aalBadge" class="badge">Checking MFA…</span><button id="refreshBtn" class="icon-btn">↻</button><button id="logoutBtn" class="ghost small">Sign out</button></div></header>
+<main class="wrap">
+<div class="hero"><div><p class="eyebrow">OWNER COMMAND</p><h1>Good morning, Alhaji.</h1><p class="muted">One place to see what VEQORO knows, what its agents are doing, what it costs, and what needs your decision.</p></div><div class="status-pill"><span class="dot"></span><span id="systemStatus">Loading system…</span></div></div>
+<section class="metrics">
+<div class="metric"><span>Active agents</span><strong id="activeAgents">—</strong><small id="agentTotal">— total</small></div><div class="metric"><span>Open risks</span><strong id="openRisks">—</strong><small id="criticalRisks">— critical</small></div><div class="metric"><span>Pending changes</span><strong id="pendingChanges">—</strong><small>governed by Council</small></div><div class="metric"><span>Agent tasks</span><strong id="activeTasks">—</strong><small>queued / running</small></div><div class="metric"><span>Revenue</span><strong id="revenue">Not connected</strong><small>verified business data</small></div><div class="metric"><span>Profit</span><strong id="profit">Not connected</strong><small>revenue − verified costs</small></div>
+</section>
+<section class="grid2">
+<div class="panel"><div class="panel-head"><div><p class="eyebrow">AGENT POOL</p><h2>All branches</h2></div><span id="agentCountBadge" class="badge">—</span></div><div id="agents" class="agent-grid"></div></div>
+<div class="panel"><div class="panel-head"><div><p class="eyebrow">DIRECT WORK</p><h2>Give an agent a task</h2></div></div>
+<form id="taskForm" class="task-form"><label>Agent<select id="agentSelect" required></select></label><label>Task title<input id="taskTitle" required placeholder="e.g. Research current competitor risks"></label><label>Task<textarea id="taskText" required rows="5" placeholder="Tell the agent exactly what you want investigated or produced."></textarea></label><div class="row"><label>Type<select id="taskType"><option value="research">Research</option><option value="analysis">Analysis</option><option value="recommendation">Recommendation</option><option value="security_review">Security review</option><option value="compliance_review">Compliance review</option><option value="product_review">Product review</option><option value="engineering_plan">Engineering plan</option></select></label><label>Risk<select id="taskRisk"><option>low</option><option selected>medium</option><option>high</option><option>critical</option></select></label></div><button class="primary" type="submit">Run through VEQORO</button><div id="taskMsg" class="message"></div></form>
+</div></section>
+<section class="grid2"><div class="panel"><div class="panel-head"><div><p class="eyebrow">COUNCIL</p><h2>Change queue</h2></div></div><div id="changes" class="list"></div></div><div class="panel"><div class="panel-head"><div><p class="eyebrow">AUDIT</p><h2>Recent activity</h2></div></div><div id="activity" class="list"></div></div></section>
+<section class="panel"><div class="panel-head"><div><p class="eyebrow">BUSINESS INTELLIGENCE</p><h2>Money & risk</h2></div></div><div class="finance-grid"><div><span>Latest verified revenue</span><strong id="fRevenue">No verified data</strong></div><div><span>Latest verified operating cost</span><strong id="fCost">No verified data</strong></div><div><span>AI cost</span><strong id="fAiCost">No verified data</strong></div><div><span>Infrastructure cost</span><strong id="fInfra">No verified data</strong></div><div><span>Premium revenue</span><strong id="fPremium">No verified data</strong></div><div><span>Advertising revenue</span><strong id="fAds">No verified data</strong></div></div><p class="muted tiny">VEQORO never invents financial figures. When a verified source is connected, the dashboard will calculate revenue, costs and profit from real records.</p></section>
+<section class="panel"><div class="panel-head"><div><p class="eyebrow">TASK HISTORY</p><h2>Work completed by agents</h2></div></div><div id="tasks" class="list"></div></section>
+<footer>Powered by VEQORO • TradeLord Quest • Owner-controlled AI operations</footer>
+</main></section></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="./app.js"></script>
+</body></html>
