@@ -1,5 +1,2 @@
-[functions.veqoro-command-center-web]
-verify_jwt = false
-
 [functions.veqoro-command-center]
 verify_jwt = true
