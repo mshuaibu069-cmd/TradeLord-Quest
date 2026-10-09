@@ -169,6 +169,13 @@ Deno.serve(async (req) => {
       );
       if (userError || !user) return json({ error: "Unauthorized" }, 401);
 
+      // Fail closed: this function currently has no OTP verification action or
+      // server-side OTP comparison. Do not turn a pending challenge into a
+      // verified login until a real email-code verification flow is implemented.
+      return json({
+        error: "Owner login is temporarily blocked because email-code verification is not configured safely.",
+      }, 503);
+
       const challengeId = String(body?.challenge_id ?? "");
       if (!challengeId) return json({ error: "Missing challenge" }, 400);
 
