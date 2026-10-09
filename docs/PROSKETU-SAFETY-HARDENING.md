@@ -80,6 +80,18 @@
 - [ ] Test the existing preview APK on the phone before replacing it with a new build.
 - [ ] Review changes and test results before merging; do not deploy automatically from this checklist.
 
+## Initial code-review findings (2026-10-09)
+
+These are repository observations, not a full security audit or proof of deployed-project behavior.
+
+- **Fixed on this review branch:** `src/services/support.js` previously spread caller-supplied privacy values after the authenticated `user_id`, allowing a caller to override that ID in the upsert. The update now accepts only the two boolean switches exposed in the privacy screen (`support_ai_enabled` and `product_analytics_enabled`) and forces the authenticated user's ID last. This is isolated on the review branch and has not been merged or deployed.
+- **Trading backend not yet verified:** the mobile service calls the `place_virtual_order` RPC, but the corresponding SQL function and authoritative trading schema/policies were not found in the tracked migration files inspected so far. Do not assume order security is verified until the deployed function definition and grants/policies are inspected.
+- **Owner authentication needs a focused review:** `veqoro-owner-auth/index.ts` creates an email-OTP challenge after PIN verification, but the inspected handler does not contain an OTP verification action. Its `finalize_login` action checks that the challenge is pending and unexpired, then marks it verified without checking an OTP value. Treat the advertised PIN-plus-email-OTP flow as **not verified** and do not rely on it as a complete two-factor control until the server-side flow is corrected and tested.
+- **Support Edge Function configuration needs confirmation:** the tracked `supabase/config.toml` explicitly sets `verify_jwt = true` only for `veqoro-command-center`; it does not explicitly document the `support-agent` setting. Confirm the deployed function's JWT verification setting before release.
+- **Test coverage is currently insufficient to certify the fix:** the tracked `package.json` does not define test, lint, or type-check scripts. No runtime tests have been claimed as passing. Add or run appropriate checks before merging.
+- **RLS and production settings remain unverified:** the tracked migrations do not yet provide enough evidence to certify all user-table policies or the deployed Supabase leaked-password-protection setting. Inspect the actual deployed policies/settings before release; no production configuration was changed.
+
 ## Change log
 
 - 2026-10-09: Owner approved implementing the safety recommendations from the Prosketu risk scan. This document records the required control set and verification gates. It does not certify that these controls are implemented; code-level work must follow repository inspection and tests.
+- 2026-10-09: Restricted client-side privacy-setting updates on the review branch and documented unresolved authentication, trading-RPC, JWT configuration, and test-coverage findings. No production deployment or database-setting changes were made.
