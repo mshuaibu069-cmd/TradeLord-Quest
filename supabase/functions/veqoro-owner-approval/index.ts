@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
 
     const nextStatus = decision === "approve" ? "approved" : "rejected";
 
-    const { error: updateError } = await admin
+    const { data: updatedRequest, error: updateError } = await admin
       .schema("veqoro")
       .from("permission_requests")
       .update({
@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (updateError) throw updateError;
-    if (!data) return json({ error: "This permission request has already been decided." }, 409);
+    if (!updatedRequest) return json({ error: "This permission request has already been decided." }, 409);
 
     await admin.schema("veqoro").from("audit_events").insert({
       event_type: "owner_permission_decision",
