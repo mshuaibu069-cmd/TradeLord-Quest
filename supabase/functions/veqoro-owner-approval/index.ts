@@ -4,17 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
-function jwtAal(auth: string) {
-  try {
-    const token = auth.slice("Bearer ".length).split(".")[1];
-    const normalized = token.replace(/-/g, "+").replace(/_/g, "/");
-    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
-    const payload = JSON.parse(atob(padded));
-    return payload.aal === "aal2" ? "aal2" : "aal1";
-  } catch {
-    return "aal1";
-  }
-}
+const DESIGNATED_OWNER_USER_ID = "53695ba9-2913-4190-8d48-f7b25baa4c0f";
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "POST required." }, 405);
@@ -37,9 +27,13 @@ Deno.serve(async (req) => {
     if (userError || !user) return json({ error: "Unauthorized." }, 401);
 
     const role = user.app_metadata?.role;
-    if (role !== "owner" && role !== "super_admin") {
-      return json({ error: "Owner authorization required." }, 403);
+    if (user.id !== DESIGNATED_OWNER_USER_ID || role !== "owner") {
+      return json({ error: "This owner approval endpoint is restricted to the designated owner account." }, 403);
     }
+
+    const token = auth.slice("Bearer ".length);
+    const { data: aalData, error: aalError } = await userClient.auth.mfa.getAuthenticatorAssuranceLevel(token);
+    if (aalError) return json({ error: "Unable to verify MFA assurance level." }, 503);
 
     const rawBody = await req.text();
     if (new TextEncoder().encode(rawBody).byteLength > 16_384) return json({ error: "Request too large." }, 413);
@@ -64,7 +58,7 @@ Deno.serve(async (req) => {
     if (requestError || !request) return json({ error: "Permission request not found." }, 404);
     if (request.status !== "pending") return json({ error: "Only pending requests can be decided." }, 409);
 
-    const aal = jwtAal(auth);
+    const aal = aalData?.currentLevel || "aal1";
     if ((request.risk_level === "high" || request.risk_level === "critical") && aal !== "aal2") {
       return json({
         error: "AAL2 MFA is required to approve or reject high-risk or critical actions.",
