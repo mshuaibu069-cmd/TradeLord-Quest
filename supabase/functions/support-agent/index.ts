@@ -37,6 +37,22 @@ async function sendExpoPush(tokens: string[], title: string, body: string, data:
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  if (req.method !== "POST") {
+    return new Response(JSON.stringify({ error: "Method not allowed." }), {
+      status: 405,
+      headers: { ...cors, "Content-Type": "application/json", "Allow": "POST, OPTIONS" },
+    });
+  }
+
+  // Bound request parsing so this authenticated endpoint cannot be used for
+  // unbounded JSON uploads. The function accepts only a ticket identifier.
+  const contentLength = Number(req.headers.get("content-length") || "0");
+  if (contentLength > 16_384) {
+    return new Response(JSON.stringify({ error: "Request too large." }), {
+      status: 413,
+      headers: { ...cors, "Content-Type": "application/json" },
+    });
+  }
 
   try {
     const authHeader = req.headers.get("Authorization");
@@ -54,8 +70,17 @@ Deno.serve(async (req) => {
 
     const admin = createClient(supabaseUrl, serviceKey);
     const body = await req.json();
-    const ticketId = String(body.ticket_id || "");
-    if (!ticketId) throw new Error("ticket_id is required.");
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return new Response(JSON.stringify({ error: "Invalid request body." }), {
+        status: 400, headers: { ...cors, "Content-Type": "application/json" },
+      });
+    }
+    const ticketId = typeof body.ticket_id === "string" ? body.ticket_id.trim() : "";
+    if (!ticketId || ticketId.length > 128) {
+      return new Response(JSON.stringify({ error: "A valid ticket_id is required." }), {
+        status: 400, headers: { ...cors, "Content-Type": "application/json" },
+      });
+    }
 
     const { data: ticket, error: ticketError } = await admin
       .from("support_tickets")
@@ -77,7 +102,9 @@ Deno.serve(async (req) => {
 
     // Optional AI layer. The secret is server-side only and is deliberately absent from the APK.
     const openaiKey = Deno.env.get("OPENAI_API_KEY");
-    if (openaiKey && privacy?.support_ai_enabled !== false) {
+    // Privacy by default: external AI processing requires an explicit true opt-in.
+    // Missing settings rows and null values must not silently enable third-party processing.
+    if (openaiKey && privacy?.support_ai_enabled === true) {
       try {
         const aiResponse = await fetch("https://api.openai.com/v1/responses", {
           method: "POST",
@@ -139,7 +166,9 @@ Deno.serve(async (req) => {
 
     try {
       await sendExpoPush(
-        (devices || []).map(d => d.expo_push_token),
+        (devices || [])
+          .map(d => d.expo_push_token)
+          .filter((token): token is string => typeof token === "string" && token.startsWith("ExponentPushToken[")),
         result.requiresHuman ? "Your complaint was escalated" : "Your complaint was received",
         result.requiresHuman
           ? "We reviewed your report and sent it for human review. You will be notified when there is an update."
@@ -158,8 +187,15 @@ Deno.serve(async (req) => {
       agent_version: agentVersion,
     }), { headers: { ...cors, "Content-Type": "application/json" } });
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message || "Support agent failed." }), {
-      status: 400,
+    // Do not send internal exception text, database details, or provider responses
+    // back to callers. The full exception is intentionally not logged here because
+    // it may contain private user content or provider details.
+    const message = error instanceof Error ? error.message : "";
+    const status = message === "Missing authorization." || message === "Unauthorized." ? 401 : 500;
+    return new Response(JSON.stringify({
+      error: status === 401 ? "Unauthorized." : "Support agent failed safely. The ticket remains available for human support.",
+    }), {
+      status,
       headers: { ...cors, "Content-Type": "application/json" },
     });
   }
