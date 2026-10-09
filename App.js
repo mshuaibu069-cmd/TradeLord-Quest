@@ -872,7 +872,7 @@ function PrivacyScreen({ onBack }) {
       <View style={s.settingRow}>
         <View style={s.settingText}>
           <Text style={s.listTitle}>Automatic support assistant</Text>
-          <Text style={s.listSubtitle}>Allows complaint text to be processed for support triage.</Text>
+          <Text style={s.listSubtitle}>When ON, complaint text may be sent to an external AI provider for a summary. When OFF, support triage stays rules-based.</Text>
         </View>
         <Pressable style={[s.toggle, supportAi && s.toggleOn]} onPress={() => save({ support_ai_enabled: !supportAi })} disabled={working}>
           <Text style={s.toggleText}>{supportAi ? 'ON' : 'OFF'}</Text>
