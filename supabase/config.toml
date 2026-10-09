@@ -1,2 +1,5 @@
 [functions.veqoro-command-center]
 verify_jwt = true
+
+[functions.support-agent]
+verify_jwt = true
