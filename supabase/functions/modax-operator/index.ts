@@ -110,18 +110,18 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Operator webhook secret is not configured." }, 503);
   }
 
-  if (!MODAX_OWNER_CHAT_ID) {
-    // Fail closed: without the explicit owner-chat allowlist this operator must not
-    // answer arbitrary Telegram chats.
-    return json({ error: "Operator owner-chat lock is not configured." }, 503);
-  }
-
   const contentLength = Number(req.headers.get("content-length") || "0");
   if (contentLength > 32_768) return json({ error: "Request too large." }, 413);
 
   const incomingSecret = req.headers.get("x-telegram-bot-api-secret-token");
   if (incomingSecret !== TELEGRAM_WEBHOOK_SECRET) {
     return json({ error: "Unauthorized." }, 401);
+  }
+
+  if (!MODAX_OWNER_CHAT_ID) {
+    // Fail closed: without the explicit owner-chat allowlist this operator must not
+    // answer arbitrary Telegram chats.
+    return json({ error: "Operator owner-chat lock is not configured." }, 503);
   }
 
   let update: TelegramUpdate;
