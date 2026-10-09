@@ -40,7 +40,8 @@ async function logEvent(update: TelegramUpdate) {
       source: "telegram",
       event_type: "message",
       external_id: String(update.update_id ?? ""),
-      payload: update,
+      // Store only non-content metadata; do not persist the full private Telegram message.
+      payload: { chat_type: update.message?.chat?.type ?? null },
     }),
   });
 }
@@ -103,11 +104,20 @@ async function askOpenAI(text: string) {
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method !== "POST") return json({ ok: true, service: "modax-operator" });
+  if (req.method !== "POST") return json({ error: "Method not allowed." }, 405);
 
   if (!TELEGRAM_WEBHOOK_SECRET) {
     return json({ error: "Operator webhook secret is not configured." }, 503);
   }
+
+  if (!MODAX_OWNER_CHAT_ID) {
+    // Fail closed: without the explicit owner-chat allowlist this operator must not
+    // answer arbitrary Telegram chats.
+    return json({ error: "Operator owner-chat lock is not configured." }, 503);
+  }
+
+  const contentLength = Number(req.headers.get("content-length") || "0");
+  if (contentLength > 32_768) return json({ error: "Request too large." }, 413);
 
   const incomingSecret = req.headers.get("x-telegram-bot-api-secret-token");
   if (incomingSecret !== TELEGRAM_WEBHOOK_SECRET) {
@@ -116,7 +126,14 @@ Deno.serve(async (req: Request) => {
 
   let update: TelegramUpdate;
   try {
-    update = await req.json();
+    const rawBody = await req.text();
+    if (new TextEncoder().encode(rawBody).byteLength > 32_768) {
+      return json({ error: "Request too large." }, 413);
+    }
+    update = JSON.parse(rawBody);
+    if (!update || typeof update !== "object" || Array.isArray(update)) {
+      return json({ error: "Invalid update." }, 400);
+    }
   } catch {
     return json({ error: "Invalid JSON." }, 400);
   }
@@ -125,8 +142,9 @@ Deno.serve(async (req: Request) => {
   const text = update.message?.text?.trim();
 
   if (chatId === undefined || !text) return json({ ok: true });
+  if (text.length > 4000) return json({ error: "Message too long." }, 413);
 
-  if (MODAX_OWNER_CHAT_ID && String(chatId) !== String(MODAX_OWNER_CHAT_ID)) {
+  if (String(chatId) !== String(MODAX_OWNER_CHAT_ID)) {
     return json({ ok: true });
   }
 
