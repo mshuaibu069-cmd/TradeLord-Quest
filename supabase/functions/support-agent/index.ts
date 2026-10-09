@@ -185,7 +185,7 @@ Deno.serve(async (req) => {
       await sendExpoPush(
         (devices || [])
           .map(d => d.expo_push_token)
-          .filter((token): token is string => typeof token === "string" && /^(Expo|Exponent)PushToken\\[/.test(token)),
+          .filter((token): token is string => typeof token === "string" && /^(Expo|Exponent)PushToken\[/.test(token)),
         result.requiresHuman ? "Your complaint was escalated" : "Your complaint was received",
         result.requiresHuman
           ? "We reviewed your report and sent it for human review. You will be notified when there is an update."
