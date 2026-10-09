@@ -69,13 +69,26 @@ Deno.serve(async (req) => {
     if (userError || !user) throw new Error("Unauthorized.");
 
     const admin = createClient(supabaseUrl, serviceKey);
-    const body = await req.json();
+    const rawBody = await req.text();
+    if (new TextEncoder().encode(rawBody).byteLength > 16_384) {
+      return new Response(JSON.stringify({ error: "Request too large." }), {
+        status: 413, headers: { ...cors, "Content-Type": "application/json" },
+      });
+    }
+    let body: unknown;
+    try {
+      body = JSON.parse(rawBody);
+    } catch {
+      return new Response(JSON.stringify({ error: "Invalid JSON body." }), {
+        status: 400, headers: { ...cors, "Content-Type": "application/json" },
+      });
+    }
     if (!body || typeof body !== "object" || Array.isArray(body)) {
       return new Response(JSON.stringify({ error: "Invalid request body." }), {
         status: 400, headers: { ...cors, "Content-Type": "application/json" },
       });
     }
-    const ticketId = typeof body.ticket_id === "string" ? body.ticket_id.trim() : "";
+    const ticketId = typeof (body as Record<string, unknown>).ticket_id === "string" ? ((body as Record<string, string>).ticket_id).trim() : "";
     if (!ticketId || ticketId.length > 128) {
       return new Response(JSON.stringify({ error: "A valid ticket_id is required." }), {
         status: 400, headers: { ...cors, "Content-Type": "application/json" },
@@ -88,7 +101,11 @@ Deno.serve(async (req) => {
       .eq("id", ticketId)
       .single();
 
-    if (ticketError || !ticket || ticket.user_id !== user.id) throw new Error("Ticket not found.");
+    if (ticketError || !ticket || ticket.user_id !== user.id) {
+      return new Response(JSON.stringify({ error: "Ticket not found." }), {
+        status: 404, headers: { ...cors, "Content-Type": "application/json" },
+      });
+    }
 
     const { data: privacy } = await admin
       .from("user_privacy_settings")
@@ -168,7 +185,7 @@ Deno.serve(async (req) => {
       await sendExpoPush(
         (devices || [])
           .map(d => d.expo_push_token)
-          .filter((token): token is string => typeof token === "string" && token.startsWith("ExponentPushToken[")),
+          .filter((token): token is string => typeof token === "string" && /^(Expo|Exponent)PushToken\\[/.test(token)),
         result.requiresHuman ? "Your complaint was escalated" : "Your complaint was received",
         result.requiresHuman
           ? "We reviewed your report and sent it for human review. You will be notified when there is an update."
