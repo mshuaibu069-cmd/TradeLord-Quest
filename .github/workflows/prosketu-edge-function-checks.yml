@@ -11,6 +11,7 @@ on:
       - "supabase/functions/veqoro-owner-approval/**"
       - "supabase/functions/veqoro-owner-auth/**"
       - "supabase/config.toml"
+      - "deno.json"
       - ".github/workflows/prosketu-edge-function-checks.yml"
   workflow_dispatch:
 
