@@ -858,7 +858,7 @@ function PrivacyScreen({ onBack }) {
     }
   }
 
-  const supportAi = settings?.support_ai_enabled ?? true;
+  const supportAi = settings?.support_ai_enabled ?? false;
   const analytics = settings?.product_analytics_enabled ?? false;
 
   return (
