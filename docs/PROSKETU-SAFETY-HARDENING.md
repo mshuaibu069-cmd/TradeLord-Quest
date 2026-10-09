@@ -1,0 +1,85 @@
+# Prosketu Safety Hardening Plan — VEQORO / TradeLord Quest
+
+**Status:** Owner-approved for implementation planning; not a claim that controls are already implemented.
+**Created:** 2026-10-09
+**Scope:** Safety controls for the existing educational simulator and future VEQORO AI/support systems.
+**Release rule:** Do not merge or deploy application/backend changes until the affected code, database policies, Edge Functions, configuration, and tests have been inspected. Keep the current app build intact while testing.
+
+## Non-negotiable product boundaries
+
+- Virtual balances and simulated orders only.
+- No real-money deposits, withdrawals, or real-money orders in V1.
+- No guaranteed-profit claims or claims that AI can predict outcomes with certainty.
+- AI Teacher is educational, not a broker or a replacement for regulated financial advice.
+- Do not introduce binary-options-style real-money functionality.
+- Never ship Supabase service-role keys, provider secrets, or AI keys in the mobile app.
+- Do not redistribute market news or data unless the relevant licence permits it.
+
+## Controls to verify and implement in the correct layer
+
+### 1. Backend authority and virtual trading
+- Treat the server/database as the source of truth for virtual balances, positions, points, streaks, premium entitlements, and competition results.
+- Verify every order on the server: authenticated owner, valid symbol, permitted side, finite positive quantity, supported precision, quote/price source, balance/position limits, and transaction consistency.
+- Reject client-supplied balance, points, premium, fill-price, or competition-score updates unless independently validated server-side.
+- Use atomic database transactions or equivalent consistency protections for order and balance changes.
+- Add abuse/rate limits to order and high-value actions.
+- Keep all virtual trading clearly simulated and prevent any connection to real-money execution.
+
+### 2. AI and agent permissions
+- Keep AI tools disabled unless explicitly allowlisted for that agent and task.
+- Default agents to observe, summarize, classify, and recommend; do not allow unsupervised consequential actions.
+- Require human approval for account suspensions, account deletion handling, billing/premium changes, privacy/security/legal escalations, competition disqualification, and other high-impact actions.
+- Treat retrieved pages, news, emails, tickets, documents, and user content as untrusted input; never let those inputs override system permissions or reveal secrets.
+- Add per-action authorization, audit events, rate limits, and an operator-controlled emergency stop before enabling autonomous execution.
+- Never place credentials or secrets in prompts, client code, logs, or user-visible AI output.
+
+### 3. Support operations and complaints
+- AI may categorize tickets and draft suggested responses.
+- AI recommendations must not silently become final legal, privacy, security, billing, or account-enforcement decisions.
+- Escalate sensitive/high-impact cases to an authorized human.
+- Restrict support-agent access to the minimum data needed; log access and decisions without unnecessarily copying private complaint content.
+- Provide a route for users to dispute or request human review of significant restrictions.
+
+### 4. Authentication, account security, and secrets
+- Confirm Row Level Security is enabled and tested for every user-owned table.
+- Confirm every database policy checks the authenticated user/authorized role and does not trust a user-supplied ID alone.
+- Keep service-role and third-party API keys server-side; rotate any secret found in client bundles or logs.
+- Review account recovery, session handling, rate limiting, email verification, and owner/admin multi-factor authentication before production.
+- Enable Supabase leaked-password protection before production, after verifying current project settings.
+- Ensure admin privileges are assigned server-side and cannot be self-granted by a client.
+
+### 5. Privacy, age, and analytics
+- Inventory personal data and third-party SDKs; document purpose, lawful basis where applicable, retention, sharing, and deletion.
+- Avoid location collection unless a feature genuinely requires it.
+- Keep optional analytics off by default until the consent/notice design and actual SDK behavior are verified.
+- Define the intended minimum age and assess child access and safeguards before public launch.
+- Provide clear privacy information, account/data access and deletion paths, and a documented retention schedule.
+- Assess whether a data-protection impact assessment is needed for planned profiling, AI, or children's data.
+
+### 6. Store distribution and product claims
+- Check current Google Play and Apple rules against actual features, screenshots, metadata, and monetization before submission.
+- Keep public messaging consistent with an educational virtual-money simulator.
+- Verify Android developer verification and package/signing ownership requirements for each distribution channel and target country.
+- Do not claim that the app is licensed or approved by a financial regulator unless verified and authorized.
+
+### 7. Market news and intellectual property
+- Use original educational explanations or properly licensed sources.
+- Record each provider's permitted use, attribution, storage, display, and redistribution rights.
+- Do not copy full articles or redistribute market-data feeds unless the applicable terms allow it.
+
+## Required verification before any safety-related release
+
+- [ ] Inspect all migrations, RLS policies, RPCs, Edge Functions, and trading/support service code.
+- [ ] Confirm virtual order validation and balance updates happen server-side and atomically.
+- [ ] Test unauthenticated access, cross-user access, privilege escalation, forged balances/points, invalid quantities, and replay/race conditions.
+- [ ] Test prompt injection through user tickets and retrieved content; confirm no unauthorized tools or data access.
+- [ ] Test human approval and escalation for high-impact support decisions.
+- [ ] Inspect the mobile bundle for secrets and verify production secrets are server-side.
+- [ ] Verify account deletion, privacy settings, and analytics behavior against the actual backend.
+- [ ] Run project lint/type checks and relevant tests; run Expo diagnostics.
+- [ ] Test the existing preview APK on the phone before replacing it with a new build.
+- [ ] Review changes and test results before merging; do not deploy automatically from this checklist.
+
+## Change log
+
+- 2026-10-09: Owner approved implementing the safety recommendations from the Prosketu risk scan. This document records the required control set and verification gates. It does not certify that these controls are implemented; code-level work must follow repository inspection and tests.
