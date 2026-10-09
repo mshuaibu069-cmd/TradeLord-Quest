@@ -1,0 +1,50 @@
+name: Prosketu Edge Function Checks
+
+on:
+  pull_request:
+    branches:
+      - cloud/phone-first
+    paths:
+      - "supabase/functions/modax-operator/**"
+      - "supabase/functions/support-agent/**"
+      - "supabase/functions/veqoro-control-plane/**"
+      - "supabase/functions/veqoro-owner-approval/**"
+      - "supabase/functions/veqoro-owner-auth/**"
+      - "supabase/config.toml"
+      - ".github/workflows/prosketu-edge-function-checks.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prosketu-edge-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck-edge-functions:
+    name: Type-check safety-critical Edge Functions
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out review branch
+        uses: actions/checkout@v4
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Type-check MODAX operator
+        run: deno check supabase/functions/modax-operator/index.ts
+
+      - name: Type-check support agent
+        run: deno check supabase/functions/support-agent/index.ts
+
+      - name: Type-check VEQORO control plane
+        run: deno check supabase/functions/veqoro-control-plane/index.ts
+
+      - name: Type-check owner approval
+        run: deno check supabase/functions/veqoro-owner-approval/index.ts
+
+      - name: Type-check owner authentication
+        run: deno check supabase/functions/veqoro-owner-auth/index.ts
