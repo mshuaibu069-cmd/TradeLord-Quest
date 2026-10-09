@@ -169,59 +169,11 @@ Deno.serve(async (req) => {
       );
       if (userError || !user) return json({ error: "Unauthorized" }, 401);
 
-      const challengeId = String(body?.challenge_id ?? "");
-      if (!challengeId) return json({ error: "Missing challenge" }, 400);
-
-      const { data: challenge, error: challengeError } = await admin
-        .schema("veqoro")
-        .from("owner_auth_challenges")
-        .select("id, user_id, status, expires_at")
-        .eq("id", challengeId)
-        .maybeSingle();
-
-      if (challengeError || !challenge || challenge.user_id !== user.id ||
-          challenge.status !== "pending" ||
-          new Date(challenge.expires_at).getTime() <= Date.now()) {
-        return json({ error: "Invalid or expired challenge" }, 401);
-      }
-
-      const role = user.app_metadata?.role;
-      if (role !== "owner" && role !== "super_admin") {
-        await admin.schema("veqoro").from("audit_events").insert({
-          event_type: "owner_login_denied",
-          actor_type: "owner_auth",
-          actor_id: user.id,
-          action_key: "owner.dashboard.login",
-          risk_level: "critical",
-          outcome: "denied",
-          metadata: { reason: "owner_role_not_configured" },
-        });
-        return json({ error: "Owner authorization is not configured" }, 403);
-      }
-
-      await admin
-        .schema("veqoro")
-        .from("owner_auth_challenges")
-        .update({ status: "verified", verified_at: new Date().toISOString() })
-        .eq("id", challengeId);
-
-      await admin
-        .schema("veqoro")
-        .from("owner_security_profiles")
-        .update({ status: "active", last_security_review_at: new Date().toISOString() })
-        .eq("user_id", user.id);
-
-      await admin.schema("veqoro").from("audit_events").insert({
-        event_type: "owner_login_completed",
-        actor_type: "owner_auth",
-        actor_id: user.id,
-        action_key: "owner.dashboard.login",
-        risk_level: "high",
-        outcome: "allowed",
-        metadata: { challenge_id: challengeId },
-      });
-
-      return json({ ok: true, owner: true });
+      // Fail closed: this function has no verified OTP delivery/comparison flow.
+      // Do not mark a pending challenge verified or grant dashboard access.
+      return json({
+        error: "Owner login is temporarily blocked because email-code verification is not configured safely.",
+      }, 503);
     }
 
     return json({ error: "Unknown action" }, 400);

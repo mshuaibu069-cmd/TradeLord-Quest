@@ -1,2 +1,15 @@
 [functions.veqoro-command-center]
 verify_jwt = true
+
+[functions.support-agent]
+verify_jwt = true
+
+[functions.veqoro-control-plane]
+verify_jwt = true
+
+[functions.veqoro-owner-approval]
+verify_jwt = true
+
+[functions.veqoro-owner-auth]
+verify_jwt = true
+

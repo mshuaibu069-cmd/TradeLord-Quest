@@ -12,17 +12,7 @@ function levelRank(level: string) {
   return i < 0 ? -1 : i;
 }
 
-function jwtAal(auth: string) {
-  try {
-    const token = auth.slice("Bearer ".length).split(".")[1];
-    const normalized = token.replace(/-/g, "+").replace(/_/g, "/");
-    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
-    const payload = JSON.parse(atob(padded));
-    return payload.aal === "aal2" ? "aal2" : "aal1";
-  } catch {
-    return "aal1";
-  }
-}
+const DESIGNATED_OWNER_USER_ID = "53695ba9-2913-4190-8d48-f7b25baa4c0f";
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "POST required." }, 405);
@@ -41,24 +31,32 @@ Deno.serve(async (req) => {
     if (userError || !user) return json({ error: "Unauthorized." }, 401);
 
     const role = user.app_metadata?.role;
-    if (role !== "owner" && role !== "super_admin") return json({ error: "Owner authorization required." }, 403);
+    if (user.id !== DESIGNATED_OWNER_USER_ID || role !== "owner") {
+      return json({ error: "This control endpoint is restricted to the designated owner account." }, 403);
+    }
 
-    const aal = jwtAal(auth);
+    const token = auth.slice("Bearer ".length);
+    const { data: aalData, error: aalError } = await userClient.auth.mfa.getAuthenticatorAssuranceLevel(token);
+    if (aalError) return json({ error: "Unable to verify MFA assurance level." }, 503);
+    const aal = aalData?.currentLevel || "aal1";
     const admin = createClient(supabaseUrl, serviceKey);
-    const body = await req.json();
+    const rawBody = await req.text();
+    if (new TextEncoder().encode(rawBody).byteLength > 16_384) return json({ error: "Request too large." }, 413);
+    const body = JSON.parse(rawBody);
+    if (!body || typeof body !== "object" || Array.isArray(body)) return json({ error: "Invalid request body." }, 400);
 
-    const agentKey = String(body.agent_key || "");
-    const actionKey = String(body.action_key || "");
+    const agentKey = typeof body.agent_key === "string" ? body.agent_key.trim() : "";
+    const actionKey = typeof body.action_key === "string" ? body.action_key.trim() : "";
     const resourceType = body.resource_type ? String(body.resource_type) : null;
     const resourceId = body.resource_id ? String(body.resource_id) : null;
     const environment = String(body.environment || "development");
     const riskLevel = String(body.risk_level || "low");
-    const rationale = String(body.rationale || "");
-    const dataClasses = Array.isArray(body.data_classes) ? body.data_classes.map(String) : [];
+    const rationale = typeof body.rationale === "string" ? body.rationale.trim() : "";
+    const dataClasses = Array.isArray(body.data_classes) ? body.data_classes.slice(0, 9).map(String) : [];
     const simulationStatus = body.simulation_status ? String(body.simulation_status) : null;
     const actionLevel = String(body.action_level || "recommend");
 
-    if (!agentKey || !actionKey || !rationale) return json({ error: "agent_key, action_key and rationale are required." }, 400);
+    if (!agentKey || agentKey.length > 128 || !actionKey || actionKey.length > 128 || !rationale || rationale.length > 2000 || dataClasses.length > 8) return json({ error: "Required fields are missing or exceed allowed limits." }, 400);
     if (!risks.includes(riskLevel as typeof risks[number])) return json({ error: "Invalid risk_level." }, 400);
     if (!["development", "staging", "production"].includes(environment)) return json({ error: "Invalid environment." }, 400);
     if (levelRank(actionLevel) < 0) return json({ error: "Invalid action_level." }, 400);
@@ -86,9 +84,12 @@ Deno.serve(async (req) => {
     const agentRank = levelRank(agent.permission_level);
     const requestedRank = levelRank(actionLevel);
 
-    const { data: policy } = await admin.schema("veqoro").from("permission_policies")
+    const { data: policy, error: policyError } = await admin.schema("veqoro").from("permission_policies")
       .select("decision_mode,allowed_environment,resource_scope,enabled")
       .eq("agent_id", agent.id).eq("action_key", actionKey).maybeSingle();
+    if (policyError) {
+      return json({ error: "Permission policy could not be verified; request denied safely." }, 503);
+    }
 
     if (policy && (!policy.enabled || (policy.allowed_environment !== "any" && policy.allowed_environment !== environment))) {
       return json({ error: "Action is blocked by a VEQORO permission policy." }, 403);
@@ -117,24 +118,26 @@ Deno.serve(async (req) => {
       }).select("id,status,requested_at").single();
       if (insertError) throw insertError;
 
-      await admin.schema("veqoro").from("audit_events").insert({
+      const { error: auditError } = await admin.schema("veqoro").from("audit_events").insert({
         event_type: "permission_request_created",
         actor_type: "owner", actor_id: user.id, action_key: actionKey,
         resource_type: resourceType, resource_id: resourceId, risk_level: riskLevel,
         permission_request_id: request.id, outcome: "approval_required",
         metadata: { agent_key: agentKey, action_level: actionLevel, environment, aal }
       });
+      if (auditError) return json({ error: "Audit logging failed; request was created but is not confirmed for review." }, 503);
 
       return json({ ok: true, status: "approval_required", permission_request_id: request.id });
     }
 
-    await admin.schema("veqoro").from("audit_events").insert({
+    const { error: auditError } = await admin.schema("veqoro").from("audit_events").insert({
       event_type: "control_plane_check",
       actor_type: "owner", actor_id: user.id, action_key: actionKey,
       resource_type: resourceType, resource_id: resourceId, risk_level: riskLevel,
       outcome: "allowed_no_execution",
       metadata: { agent_key: agentKey, action_level: actionLevel, environment, aal }
     });
+    if (auditError) return json({ error: "Audit logging failed; request denied safely." }, 503);
 
     return json({
       ok: true,
@@ -142,6 +145,7 @@ Deno.serve(async (req) => {
       message: "Control Plane approved the request boundary. No protected action was executed by this endpoint."
     });
   } catch (error) {
-    return json({ error: error instanceof Error ? error.message : "Control Plane error." }, 400);
+    console.error("VEQORO control-plane request failed.", error instanceof Error ? error.name : "unknown");
+    return json({ error: "Control Plane failed safely. No protected action was executed." }, 500);
   }
 });

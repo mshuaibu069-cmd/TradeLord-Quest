@@ -62,9 +62,22 @@ export async function updatePrivacySettings(values) {
   if (authError) throw authError;
   if (!user) throw new Error('You must be signed in.');
 
+  // Only allow the two user-editable switches exposed by the privacy screen.
+  // In particular, never accept user_id or policy/version fields from the caller.
+  const safeValues = {};
+  if (typeof values?.support_ai_enabled === 'boolean') {
+    safeValues.support_ai_enabled = values.support_ai_enabled;
+  }
+  if (typeof values?.product_analytics_enabled === 'boolean') {
+    safeValues.product_analytics_enabled = values.product_analytics_enabled;
+  }
+  if (Object.keys(safeValues).length === 0) {
+    throw new Error('No valid privacy setting was provided.');
+  }
+
   const { data, error } = await supabase
     .from('user_privacy_settings')
-    .upsert({ user_id: user.id, ...values })
+    .upsert({ ...safeValues, user_id: user.id })
     .select('support_ai_enabled, product_analytics_enabled, security_monitoring_acknowledged, privacy_version, terms_version')
     .single();
 
