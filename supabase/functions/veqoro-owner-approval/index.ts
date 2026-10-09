@@ -18,6 +18,8 @@ function jwtAal(auth: string) {
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "POST required." }, 405);
+  const contentLength = Number(req.headers.get("content-length") || "0");
+  if (contentLength > 16_384) return json({ error: "Request too large." }, 413);
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -39,12 +41,15 @@ Deno.serve(async (req) => {
       return json({ error: "Owner authorization required." }, 403);
     }
 
-    const body = await req.json();
-    const requestId = String(body.permission_request_id || "");
-    const decision = String(body.decision || "");
-    const note = body.note ? String(body.note) : null;
+    const rawBody = await req.text();
+    if (new TextEncoder().encode(rawBody).byteLength > 16_384) return json({ error: "Request too large." }, 413);
+    const body = JSON.parse(rawBody);
+    if (!body || typeof body !== "object" || Array.isArray(body)) return json({ error: "Invalid request body." }, 400);
+    const requestId = typeof body.permission_request_id === "string" ? body.permission_request_id.trim() : "";
+    const decision = typeof body.decision === "string" ? body.decision : "";
+    const note = body.note == null ? null : (typeof body.note === "string" ? body.note.trim() : "");
 
-    if (!requestId || !["approve", "reject"].includes(decision)) {
+    if (!requestId || requestId.length > 128 || !["approve", "reject"].includes(decision) || (note !== null && note.length > 1000)) {
       return json({ error: "permission_request_id and decision (approve/reject) are required." }, 400);
     }
 
@@ -80,9 +85,12 @@ Deno.serve(async (req) => {
         result: { owner_decision: decision, note },
       })
       .eq("id", request.id)
-      .eq("status", "pending");
+      .eq("status", "pending")
+      .select("id")
+      .maybeSingle();
 
     if (updateError) throw updateError;
+    if (!data) return json({ error: "This permission request has already been decided." }, 409);
 
     await admin.schema("veqoro").from("audit_events").insert({
       event_type: "owner_permission_decision",
@@ -112,6 +120,7 @@ Deno.serve(async (req) => {
         : "Owner rejection recorded. The protected action has NOT been executed.",
     });
   } catch (error) {
-    return json({ error: error instanceof Error ? error.message : "Approval service error." }, 400);
+    console.error("Owner approval request failed.", error instanceof Error ? error.name : "unknown");
+    return json({ error: "Approval service failed safely. No protected action was executed." }, 500);
   }
 });
